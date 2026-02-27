@@ -1,0 +1,117 @@
+/* ---- Reset & Base ---- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f9f5f2;
+  color: #333;
+  line-height: 1.7;
+}
+
+/* ---- Header ---- */
+header {
+  background-color: #8e5c88;
+  color: white;
+  text-align: center;
+  padding: 60px 20px 40px;
+}
+
+header h1 {
+  font-size: 3rem;
+  letter-spacing: 2px;
+}
+
+.tagline {
+  font-size: 1.1rem;
+  margin-top: 10px;
+  opacity: 0.85;
+}
+
+/* ---- Navigation ---- */
+nav {
+  background-color: #6b3f6b;
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  padding: 14px;
+}
+
+nav a {
+  color: white;
+  text-decoration: none;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  transition: opacity 0.2s;
+}
+
+nav a:hover {
+  opacity: 0.7;
+}
+
+/* ---- Main Content ---- */
+main {
+  max-width: 750px;
+  margin: 50px auto;
+  padding: 0 20px;
+}
+
+section {
+  background: white;
+  border-radius: 10px;
+  padding: 35px 40px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+}
+
+section h2 {
+  font-size: 1.6rem;
+  color: #8e5c88;
+  margin-bottom: 15px;
+  border-bottom: 2px solid #f0e0f0;
+  padding-bottom: 8px;
+}
+
+section p {
+  font-size: 1rem;
+  color: #555;
+}
+
+section ul {
+  list-style: none;
+  padding: 0;
+}
+
+section ul li {
+  padding: 6px 0;
+  font-size: 1rem;
+  color: #555;
+}
+
+section ul li::before {
+  content: "• ";
+  color: #8e5c88;
+  font-weight: bold;
+}
+
+section a {
+  color: #8e5c88;
+  text-decoration: none;
+}
+
+section a:hover {
+  text-decoration: underline;
+}
+
+/* ---- Footer ---- */
+footer {
+  text-align: center;
+  padding: 25px;
+  background-color: #6b3f6b;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.85rem;
+}
