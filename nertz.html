@@ -358,6 +358,7 @@ function loadState() {
 }
 
 let S = loadState();
+let pendingSettings = null;
 
 function save() {
   if (!S.tournamentId) S.tournamentId = Math.random().toString(36).slice(2,9);
@@ -1000,11 +1001,13 @@ function buildAdminTournamentSelect() {
 }
 
 function buildAdminSettings() {
-  const s = S.settings;
+  const s = pendingSettings || S.settings;
+  const dirty = pendingSettings !== null;
   return `<div class="section">
+    ${dirty ? `<div style="background:rgba(192,24,126,.1);border:1px solid rgba(192,24,126,.3);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--accent);font-weight:600;">Unsaved changes</div>` : ''}
     <div class="field">
       <div class="label">Tournament Name</div>
-      <input type="text" class="input" value="${escH(S.tournamentName||'')}" data-a="setTournamentName" placeholder="Tournament name">
+      <input type="text" class="input" id="settings-name-inp" value="${escH(dirty ? (pendingSettings._name ?? S.tournamentName) : S.tournamentName)||''}" data-a="setTournamentName" placeholder="Tournament name">
     </div>
     <div class="divider"></div>
     <div class="field">
@@ -1055,6 +1058,7 @@ function buildAdminSettings() {
       </div>
     </div>
     <div class="divider"></div>
+    <button class="btn btn-primary btn-full" data-a="saveSettings">Save Settings</button>
     <button class="btn btn-danger btn-full btn-sm" data-a="resetAll">⚠ Reset Tournament</button>
   </div>`;
 }
@@ -1284,13 +1288,23 @@ function onClick(e) {
   else if (a==='setMode') upd({mode:v, screen:'home'});
   else if (a==='setScreen') upd({screen:v});
   else if (a==='back') upd({screen:'scores', scoringModal:null, roundInputs:{}});
-  else if (a==='setAdminTab') upd({adminTab:v});
+  else if (a==='setAdminTab') { pendingSettings=null; upd({adminTab:v}); }
   else if (a==='setLbSort') upd({lbSort:v});
   else if (a==='setSFilter') upd({stageFilter:v});
   else if (a==='setSetting') {
     let val=v;
     if(v==='true') val=true; else if(v==='false') val=false; else if(!isNaN(+v)) val=+v;
-    S.settings={...S.settings,[el.dataset.k]:val}; save(); render();
+    if(!pendingSettings) pendingSettings={...S.settings, _name: S.tournamentName};
+    pendingSettings={...pendingSettings,[el.dataset.k]:val};
+    render();
+  }
+  else if (a==='saveSettings') {
+    const nameInp=document.getElementById('settings-name-inp');
+    const name=nameInp?nameInp.value.trim():S.tournamentName;
+    if(pendingSettings){const{_name,...rest}=pendingSettings;S.settings={...rest};}
+    S.tournamentName=name||S.tournamentName;
+    pendingSettings=null;
+    save(); render();
   }
   else if (a==='toggleForm') {
     const f=document.getElementById(el.dataset.f);
@@ -1329,8 +1343,8 @@ function onClick(e) {
 
 function onChange(e) {
   const el=e.target, a=el.dataset.a;
-  if (a==='setTournamentName') { S.tournamentName=el.value; save(); }
-  if (a==='setSettingNum') { S.settings={...S.settings,[el.dataset.k]:parseInt(el.value)||1}; save(); }
+  if (a==='setTournamentName') { if(!pendingSettings) pendingSettings={...S.settings,_name:S.tournamentName}; pendingSettings._name=el.value; }
+  if (a==='setSettingNum') { if(!pendingSettings) pendingSettings={...S.settings,_name:S.tournamentName}; pendingSettings={...pendingSettings,[el.dataset.k]:parseInt(el.value)||1}; }
   if (a==='setPlayerCol') {
     const p=S.participants.find(p=>p.id===el.dataset.id);
     if(p){p.collectionId=el.value||null;save();render();}
