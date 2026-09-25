@@ -321,6 +321,7 @@ const DEF = {
   settings: {
     gameSize: 4,
     minGroupSize: 3,
+    gamesPerStage: 1,
     pointsToWin: 50,
     advancementMethod: 'wins',
     shuffleAfterGame: false,
@@ -512,6 +513,20 @@ function distributeGroups(total, maxSize, minSize) {
   const sizes = [];
   for (let i = 0; i < total; i += maxSize) sizes.push(Math.min(maxSize, total - i));
   return sizes;
+}
+
+// Returns groups in a stage that belong to the current (highest) round.
+function activeGroupsForStage(stageId) {
+  const groups = S.groups.filter(g => g.stageId === stageId);
+  if (!groups.length) return [];
+  const maxRound = Math.max(...groups.map(g => g.round || 1));
+  return groups.filter(g => (g.round || 1) === maxRound);
+}
+
+function stageCurrentRound(stageId) {
+  const groups = S.groups.filter(g => g.stageId === stageId);
+  if (!groups.length) return 1;
+  return Math.max(...groups.map(g => g.round || 1));
 }
 
 function avatarBg(pid) {
@@ -783,10 +798,13 @@ function buildBrackets() {
   if (!S.stages.length) return `<div class="empty"><div class="empty-icon">🏆</div><p>No stages set up yet. Ask the admin to configure the tournament.</p></div>`;
 
   let html = '<div style="padding:16px;display:flex;flex-direction:column;gap:20px;">';
+  const gpsB = S.settings.gamesPerStage || 1;
   S.stages.forEach(stage => {
-    const groups = S.groups.filter(g=>g.stageId===stage.id);
+    const groups = activeGroupsForStage(stage.id);
+    const curRoundB = stageCurrentRound(stage.id);
+    const roundLabel = gpsB > 1 ? ` · Round ${curRoundB}/${gpsB}` : '';
     html += `<div class="stage-block">
-      <div class="stage-label">${escH(stage.name)} ${stage.status==='complete'?'<span class="badge badge-green">Complete</span>':''}</div>
+      <div class="stage-label">${escH(stage.name)}${roundLabel} ${stage.status==='complete'?'<span class="badge badge-green">Complete</span>':''}</div>
       ${groups.length===0?`<div style="padding:0 16px;color:var(--muted);font-size:13px;">No groups yet</div>`:''}
       ${groups.map(group => {
         const game = activeGameForGroup(group.id) || completedGamesForGroup(group.id).slice(-1)[0];
@@ -874,8 +892,8 @@ function buildScoresList() {
   const filter = S.stageFilter;
 
   const filteredGroups = filter === 'all'
-    ? S.groups
-    : S.groups.filter(g=>g.stageId===filter);
+    ? S.stages.flatMap(st => activeGroupsForStage(st.id))
+    : activeGroupsForStage(filter);
 
   return `
     <div class="stage-filter">
@@ -915,8 +933,11 @@ function buildScorecard() {
     html += buildActiveScorecardView(activeGame);
   } else {
     const stage = getStage(group.stageId);
+    const gps = S.settings.gamesPerStage || 1;
+    const curRound = stageCurrentRound(group.stageId);
+    const roundInfo = gps > 1 ? ` · Game ${curRound}/${gps}` : '';
     html += `<div style="padding:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <span style="font-size:13px;color:var(--muted)">${escH(stage?.name||'')} · ${group.participantIds.length} players</span>
+      <span style="font-size:13px;color:var(--muted)">${escH(stage?.name||'')}${roundInfo} · ${group.participantIds.length} players</span>
       <button class="btn btn-primary btn-sm" data-a="startGame" data-gid="${gid}">▶ New Game</button>
     </div>`;
   }
@@ -950,9 +971,13 @@ function buildActiveScorecardView(game) {
   let html = '';
 
   // Round header
+  const gpsAct = S.settings.gamesPerStage || 1;
+  const group4sc = getGroup(game.groupId);
+  const stgRnd = group4sc ? stageCurrentRound(group4sc.stageId) : 1;
+  const stageRoundLabel = gpsAct > 1 ? ` · Stage Game ${stgRnd}/${gpsAct}` : '';
   html += `<div class="sc-round-info" style="padding:14px 16px 4px">
     <div class="sc-round-label">${over?'Game Over':'Round '+currentRoundNum}</div>
-    <div class="sc-target">Target: ${target} pts</div>
+    <div class="sc-target">Target: ${target} pts${stageRoundLabel}</div>
   </div>`;
 
   // Player tiles (current round input)
@@ -1225,6 +1250,11 @@ function buildAdminSettings() {
       <div style="font-size:12px;color:var(--muted);margin-top:2px">When players don't divide evenly by max, leftovers borrow from larger tables so no table goes below this size.</div>
     </div>
     <div class="field">
+      <div class="label">Games Per Stage</div>
+      <div class="seg">${[1,2,3,4,5].map(n=>`<button class="seg-btn ${(s.gamesPerStage||1)===n?'active':''}" data-a="setSetting" data-k="gamesPerStage" data-v="${n}">${n}</button>`).join('')}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px">Players play this many games per stage before advancement. Groups shuffle between games automatically.</div>
+    </div>
+    <div class="field">
       <div class="label">Points to Win a Game</div>
       <input type="number" class="input" value="${s.pointsToWin}" data-a="setSettingNum" data-k="pointsToWin" inputmode="numeric" min="1">
     </div>
@@ -1384,9 +1414,13 @@ function buildAdminStages() {
     ${S.stages.length===0?`<div class="empty"><div class="empty-icon">🏆</div><p>Add a stage to create tournament groups.</p></div>`:''}
 
     ${S.stages.map((stage, stageIdx) => {
-      const stageGroups = S.groups.filter(g=>g.stageId===stage.id);
+      const stageGroups = activeGroupsForStage(stage.id);
       const ua = unassigned(stage.id);
       const mode = stageAssignmentMode(stage.id);
+      const gpsA = S.settings.gamesPerStage || 1;
+      const curRoundA = stageCurrentRound(stage.id);
+      const allActiveDone = stageGroups.length > 0 && stageGroups.every(g => completedGamesForGroup(g.id).length > 0);
+      const stageFullyDone = gpsA > 1 && curRoundA >= gpsA && allActiveDone;
       const isManual = mode === 'manual';
       const isFirstStage = stageIdx === 0;
       const isFinals = stageIdx === lastIdx && lastIdx > 0;
@@ -1400,7 +1434,10 @@ function buildAdminStages() {
 
       return `<div class="card">
         <div class="card-header">
-          <div class="card-title">${escH(stage.name)}</div>
+          <div style="flex:1">
+            <div class="card-title">${escH(stage.name)}</div>
+            ${gpsA > 1 ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${stageFullyDone?'✓ All games played — ready to advance':`Game ${curRoundA} of ${gpsA}`}</div>` : ''}
+          </div>
           <div class="btn-row">
             ${stage.status==='active'?`<button class="btn btn-ghost btn-xs" data-a="addGroup" data-sid="${stage.id}">+ Group</button>`:''}
             ${assignBtn}
@@ -1436,7 +1473,7 @@ function buildAdminStages() {
         }).join('')}
 
         ${stageGroups.length===0?`<div style="padding:12px 14px;font-size:13px;color:var(--muted)">No groups yet. ${isManual?'Add groups and assign players.':isFinals?'Use Generate Finals to auto-create the finals group.':isFirstStage?'Use Randomize to auto-assign players.':'Use Auto-assign to pull advancers from the previous stage.'}</div>`:''}
-        ${isManual&&ua.length>0&&stageGroups.length>0?`<div style="padding:8px 14px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)">${ua.length} player${ua.length!==1?'s':''} unassigned</div>`:''}
+        ${stageFullyDone?`<div style="padding:8px 14px;font-size:12px;color:var(--green);border-top:1px solid var(--border);font-weight:600">All ${gpsA} games played. Mark this stage complete to advance players.</div>`:isManual&&ua.length>0&&stageGroups.length>0?`<div style="padding:8px 14px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)">${ua.length} player${ua.length!==1?'s':''} unassigned</div>`:''}
 
         <div style="border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap">
           ${stage.status==='active'?`<button class="btn btn-ghost btn-xs" data-a="markStageComplete" data-id="${stage.id}">Mark Complete</button>`:''}
@@ -1640,7 +1677,7 @@ function doAddGroup(stageId) {
   const sid=stageId||S.stages[S.stages.length-1]?.id;
   if(!sid) return;
   const count=S.groups.filter(g=>g.stageId===sid).length;
-  S.groups.push({id:uid(),stageId:sid,name:`Table ${count+1}`,participantIds:[]});
+  S.groups.push({id:uid(),stageId:sid,round:1,name:`Table ${count+1}`,participantIds:[]});
   save(); render();
 }
 function doDeleteGroup(id) {
@@ -1685,7 +1722,7 @@ function doRandomizeStage(sid) {
     let pos = 0;
     sizes.forEach(sz => {
       const chunk = shuffled.slice(pos, pos + sz); pos += sz;
-      newGroups.push({ id: uid(), stageId: stage.id, name: `Table ${tNum++}${col ? ' ('+col.name+')' : ''}`, participantIds: chunk });
+      newGroups.push({ id: uid(), stageId: stage.id, round: 1, name: `Table ${tNum++}${col ? ' ('+col.name+')' : ''}`, participantIds: chunk });
     });
   });
   S.groups = S.groups.filter(g => g.stageId !== stage.id).concat(newGroups);
@@ -1715,7 +1752,7 @@ function doAutoAssignFromPrev(sid) {
     let pos = 0;
     sizes.forEach(sz => {
       const chunk = shuffled.slice(pos, pos + sz); pos += sz;
-      newGroups.push({ id: uid(), stageId: sid, name: `Table ${tNum++}${col ? ' ('+col.name+')' : ''}`, participantIds: chunk });
+      newGroups.push({ id: uid(), stageId: sid, round: 1, name: `Table ${tNum++}${col ? ' ('+col.name+')' : ''}`, participantIds: chunk });
     });
   });
   S.groups = S.groups.filter(g => g.stageId !== sid).concat(newGroups);
@@ -1753,7 +1790,7 @@ function doGenerateFinals(sid) {
   let pos = 0;
   groupSizes.forEach(sz => {
     const chunk = finalists.slice(pos, pos + sz); pos += sz;
-    newGroups.push({ id: uid(), stageId: sid, name: newGroups.length === 0 ? 'Finals' : `Finals ${newGroups.length + 1}`, participantIds: chunk });
+    newGroups.push({ id: uid(), stageId: sid, round: 1, name: newGroups.length === 0 ? 'Finals' : `Finals ${newGroups.length + 1}`, participantIds: chunk });
   });
   S.groups = S.groups.filter(g => g.stageId !== sid).concat(newGroups);
   save(); render();
@@ -1815,11 +1852,53 @@ function doSubmitRound(gameid) {
   game.rounds.push(round);
   upd({roundInputs:{}});
 }
+function addNextRoundGroups(stageId, nextRound) {
+  const active = activeGroupsForStage(stageId);
+  const allPids = active.flatMap(g => g.participantIds);
+  const size = S.settings.gameSize;
+  const minSize = S.settings.minGroupSize || 1;
+  const byCol = {};
+  allPids.forEach(pid => {
+    const p = getPart(pid);
+    const k = p?.collectionId || '__all__';
+    (byCol[k] = byCol[k]||[]).push(pid);
+  });
+  const newGroups = [];
+  let tNum = 1;
+  Object.entries(byCol).forEach(([cid, pids]) => {
+    const shuffled = [...pids].sort(() => Math.random() - 0.5);
+    const col = cid !== '__all__' ? getCol(cid) : null;
+    const sizes = distributeGroups(shuffled.length, size, minSize);
+    let pos = 0;
+    sizes.forEach(sz => {
+      const chunk = shuffled.slice(pos, pos + sz); pos += sz;
+      newGroups.push({ id: uid(), stageId, round: nextRound, name: `Table ${tNum++}${col ? ' ('+col.name+')' : ''}`, participantIds: chunk });
+    });
+  });
+  S.groups = [...S.groups, ...newGroups];
+}
+
 function doCompleteGame(gameid) {
   const game=getGame(gameid);
   if(!game) return;
   game.winnerId=gameWinnerId(game);
   game.completed=true;
+
+  // When gamesPerStage > 1, check if all active groups in the stage are done — if so, create next round
+  const gamesPerStage = S.settings.gamesPerStage || 1;
+  if (gamesPerStage > 1) {
+    const group = getGroup(game.groupId);
+    if (group) {
+      const stageId = group.stageId;
+      const currentRound = stageCurrentRound(stageId);
+      if (currentRound < gamesPerStage) {
+        const activeGroups = activeGroupsForStage(stageId);
+        const allDone = activeGroups.every(g => completedGamesForGroup(g.id).length > 0);
+        if (allDone) addNextRoundGroups(stageId, currentRound + 1);
+      }
+    }
+  }
+
   upd({roundInputs:{}});
 }
 function doEndGame(gameid) {
