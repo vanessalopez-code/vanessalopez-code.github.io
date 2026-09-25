@@ -333,6 +333,7 @@ const DEF = {
   stages: [],
   groups: [],
   games: [],
+  playerPhotos: {},
 };
 
 let S = { ...DEF, settings: { ...DEF.settings } };
@@ -340,6 +341,7 @@ let pendingSettings = null;
 let tournamentList = [];
 let unsubscribeTournament = null;
 let unsubscribeTournamentList = null;
+let cropState = null;
 
 const UI_FIELDS = new Set(['mode','screen','adminTab','stageFilter','activeGroupId','scoringModal','adminAuthModal','pickerCreating','roundInputs','lbSort']);
 
@@ -485,6 +487,121 @@ function colorsForParticipant(pid) {
   return getCol(p.collectionId);
 }
 
+function avatarBg(pid) {
+  const photo = S.playerPhotos && S.playerPhotos[pid];
+  if (!photo) return '';
+  return `background-image:url(${photo});background-size:cover;background-position:center;color:transparent;`;
+}
+
+function openFilePicker(pid) {
+  if (!pid) return;
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
+  document.body.appendChild(inp);
+  inp.addEventListener('change', () => {
+    const file = inp.files[0];
+    document.body.removeChild(inp);
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        cropState = { playerId: pid, img, offsetX: 0, offsetY: 0, zoom: 1 };
+        render();
+        setTimeout(() => { drawCropCanvas(); setupCropDrag(); }, 50);
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  inp.click();
+}
+
+function drawCropCanvas() {
+  const canvas = document.getElementById('crop-canvas');
+  if (!canvas || !cropState || !cropState.img) return;
+  const ctx = canvas.getContext('2d');
+  const size = 240;
+  ctx.clearRect(0, 0, size, size);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(size/2, size/2, size/2, 0, Math.PI*2);
+  ctx.clip();
+  const img = cropState.img;
+  const baseScale = Math.max(size/img.naturalWidth, size/img.naturalHeight) * cropState.zoom;
+  const imgW = img.naturalWidth * baseScale;
+  const imgH = img.naturalHeight * baseScale;
+  ctx.drawImage(img, size/2 + cropState.offsetX - imgW/2, size/2 + cropState.offsetY - imgH/2, imgW, imgH);
+  ctx.restore();
+}
+
+function setupCropDrag() {
+  const canvas = document.getElementById('crop-canvas');
+  if (!canvas || !cropState) return;
+  const zoomInp = document.getElementById('crop-zoom');
+  if (zoomInp) {
+    zoomInp.value = cropState.zoom;
+    zoomInp.addEventListener('input', () => { cropState.zoom = parseFloat(zoomInp.value); drawCropCanvas(); });
+  }
+  let lastX = 0, lastY = 0, dragging = false;
+  const onStart = (x, y) => { dragging = true; lastX = x; lastY = y; canvas.style.cursor = 'grabbing'; };
+  const onMove = (x, y) => {
+    if (!dragging) return;
+    cropState.offsetX += x - lastX; cropState.offsetY += y - lastY;
+    lastX = x; lastY = y; drawCropCanvas();
+  };
+  const onEnd = () => { dragging = false; canvas.style.cursor = 'grab'; };
+  canvas.addEventListener('mousedown', e => { e.preventDefault(); onStart(e.clientX, e.clientY); });
+  window.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
+  window.addEventListener('mouseup', onEnd);
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); onStart(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+  canvas.addEventListener('touchmove', e => { e.preventDefault(); onMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+  canvas.addEventListener('touchend', onEnd);
+}
+
+function doApplyPhotoCrop() {
+  if (!cropState) return;
+  const out = document.createElement('canvas');
+  out.width = 200; out.height = 200;
+  const ctx = out.getContext('2d');
+  ctx.beginPath(); ctx.arc(100, 100, 100, 0, Math.PI*2); ctx.clip();
+  const img = cropState.img;
+  const scale200 = 200/240;
+  const baseScale = Math.max(240/img.naturalWidth, 240/img.naturalHeight) * cropState.zoom;
+  const imgW = img.naturalWidth * baseScale * scale200;
+  const imgH = img.naturalHeight * baseScale * scale200;
+  ctx.drawImage(img, 100 + cropState.offsetX*scale200 - imgW/2, 100 + cropState.offsetY*scale200 - imgH/2, imgW, imgH);
+  const dataUrl = out.toDataURL('image/jpeg', 0.82);
+  const pid = cropState.playerId;
+  cropState = null;
+  S.playerPhotos = { ...(S.playerPhotos||{}), [pid]: dataUrl };
+  save(); render();
+}
+
+function buildPhotoCropModal() {
+  return `<div class="overlay" style="z-index:400">
+    <div class="sheet" style="padding-bottom:calc(28px + var(--sb))">
+      <div class="sheet-handle"></div>
+      <div style="text-align:center;margin-bottom:16px">
+        <div class="sheet-name">Crop Photo</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px">Drag to reposition · Slide to zoom</div>
+      </div>
+      <div style="display:flex;justify-content:center;margin-bottom:12px">
+        <canvas id="crop-canvas" width="240" height="240"
+          style="border-radius:50%;cursor:grab;touch-action:none;border:3px solid var(--accent);display:block;max-width:240px"></canvas>
+      </div>
+      <div style="padding:0 16px;margin-bottom:16px">
+        <input type="range" id="crop-zoom" min="1" max="5" step="0.05" value="1" style="width:100%;accent-color:var(--accent)">
+      </div>
+      <button class="btn btn-ghost btn-full btn-sm" data-a="chooseNewPhoto" style="margin-bottom:10px">📷 Choose Different Photo</button>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-ghost btn-full" data-a="cancelPhotoCrop">Cancel</button>
+        <button class="btn btn-primary btn-full" data-a="applyPhotoCrop">Save Photo</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 // =========================================================
 // RENDER
 // =========================================================
@@ -494,12 +611,18 @@ function render() {
   if (S.adminAuthModal) {
     setTimeout(() => { document.getElementById('admin-pw-inp')?.focus(); }, 50);
   }
+  if (cropState) {
+    setTimeout(() => { drawCropCanvas(); setupCropDrag(); }, 50);
+  }
 }
 
 function buildApp() {
-  if (S.screen === 'picker') return buildTournamentPicker();
-  if (S.mode === 'admin') return buildAdmin();
-  return buildPlayer();
+  let html;
+  if (S.screen === 'picker') html = buildTournamentPicker();
+  else if (S.mode === 'admin') html = buildAdmin();
+  else html = buildPlayer();
+  if (cropState) html += buildPhotoCropModal();
+  return html;
 }
 
 // =========================================================
@@ -627,8 +750,9 @@ function buildBrackets() {
               const p = getPart(pid);
               const isWinner = game?.completed && game.winnerId === pid;
               const total = cum ? (()=>{ const sc=cum[pid]||[]; return sc.length?sc[sc.length-1]:0; })() : null;
+              const bg = avatarBg(pid);
               return `<div class="bracket-player ${isWinner?'winner':''}">
-                <div class="bracket-avatar ${isWinner?'winner-av':''}">${escH(initials(p?.name||'?'))}</div>
+                <div class="bracket-avatar ${isWinner?'winner-av':''}" style="${bg}">${bg?'':escH(initials(p?.name||'?'))}</div>
                 <div class="bracket-pname ${isWinner?'winner':''}">${escH(p?.name||'?')}</div>
                 ${total!==null?`<div class="fw7 ${total>=0?'pos':'neg'}">${total}</div>`:''}
                 ${isWinner?'<span class="text-gold">🏆</span>':''}
@@ -672,10 +796,11 @@ function buildLeaderboard() {
           const sub = sortKey==='wins' ? `${st.gamesPlayed} played · ${st.totalPoints>=0?'+':''}${st.totalPoints} pts` :
                       sortKey==='points' ? `${st.gamesPlayed} played · ${st.gamesWon} wins` :
                       `${st.gamesWon} wins · ${st.totalPoints>=0?'+':''}${st.totalPoints} pts`;
+          const lbBg = avatarBg(p.id);
           return `<div class="lb-row">
             <div class="lb-rank">${i<3?medals[i]:i+1}</div>
-            <div class="lb-avatar" style="${col?`border-color:${col.color};color:${col.color}`:''}">
-              ${escH(initials(p.name))}
+            <div class="lb-avatar" style="${col&&!lbBg?`border-color:${col.color};color:${col.color};`:''}${lbBg}">
+              ${lbBg?'':escH(initials(p.name))}
             </div>
             <div style="flex:1">
               <div class="lb-name">${escH(p.name)}</div>
@@ -789,9 +914,10 @@ function buildActiveScorecardView(game) {
       const sc = cum[pid]||[];
       const total = sc.length ? sc[sc.length-1] : 0;
 
+      const scBg = avatarBg(pid);
       html += `<div class="sc-player-tile" data-a="openScoreModal" data-pid="${pid}">
-        <div class="sc-avatar ${hasScore&&!isNA?'has-score':''} ${isNA?'is-na':''}" style="${col?`border-color:${col.color}`:''}">
-          ${escH(initials(p?.name||'?'))}
+        <div class="sc-avatar ${hasScore&&!isNA?'has-score':''} ${isNA?'is-na':''}" style="${col&&!scBg?`border-color:${col.color};`:''}${scBg}">
+          ${scBg?'':escH(initials(p?.name||'?'))}
           ${hasScore?`<div class="sc-avatar-check">${isNA?'—':'✓'}</div>`:''}
         </div>
         <div class="sc-pname">${escH(p?.name||'?')}</div>
@@ -936,15 +1062,18 @@ function buildScoreModal() {
   const curVal = S.roundInputs[pid];
   const isNA = curVal === 'NA';
 
+  const smBg = avatarBg(pid);
+  const smAvStyle = smBg ? smBg : (col ? `background:${col.color}` : '');
   return `<div class="overlay" data-a="closeModal">
     <div class="sheet">
       <div class="sheet-handle"></div>
       <div class="sheet-player">
-        <div class="sheet-avatar" style="${col?`background:${col.color}`:''}">
-          ${escH(initials(p?.name||'?'))}
+        <div class="sheet-avatar" style="${smAvStyle}">
+          ${smBg?'':escH(initials(p?.name||'?'))}
         </div>
         <div class="sheet-name">${escH(p?.name||'?')}</div>
         <div class="sheet-total">Running total: <strong class="${total>=0?'pos':'neg'}">${total}</strong></div>
+        <button class="btn btn-ghost btn-xs" data-a="openPhotoCrop" data-pid="${pid}" style="margin-top:6px">📷 ${smBg?'Change':'Add'} Photo</button>
       </div>
       <input type="number" class="score-input-xl" id="score-inp" value="${isNA?'':curVal||''}"
         placeholder="Score" inputmode="numeric" ${isNA?'disabled':''}>
@@ -1160,9 +1289,11 @@ function buildAdminPlayers() {
 
 function playerRow(p) {
   const c = p.collectionId ? getCol(p.collectionId) : null;
+  const bg = avatarBg(p.id);
+  const avStyle = bg ? bg : (c ? `border-color:${c.color};color:${c.color}` : '');
   return `<div class="list-row">
-    <div class="bracket-avatar" style="${c?`border-color:${c.color};color:${c.color}`:''}">
-      ${escH(initials(p.name))}
+    <div class="bracket-avatar" data-a="openPhotoCrop" data-pid="${p.id}" title="Change photo" style="${avStyle};cursor:pointer">
+      ${bg?'':escH(initials(p.name))}
     </div>
     <div style="flex:1">
       <div style="font-size:15px;font-weight:600">${escH(p.name)}</div>
@@ -1172,6 +1303,7 @@ function playerRow(p) {
       <option value="">None</option>
       ${S.collections.map(c2=>`<option value="${c2.id}" ${p.collectionId===c2.id?'selected':''}>${escH(c2.name)}</option>`).join('')}
     </select>`:''}
+    <button class="btn-icon" data-a="openPhotoCrop" data-pid="${p.id}" title="Add/change photo" style="font-size:16px">📷</button>
     <button class="btn-icon red" data-a="deletePlayer" data-id="${p.id}">×</button>
   </div>`;
 }
@@ -1273,10 +1405,11 @@ function buildAdminStandings() {
       const st=stats[p.id]||{totalPoints:0,gamesWon:0,gamesPlayed:0};
       const col=p.collectionId?getCol(p.collectionId):null;
       const medals=['🥇','🥈','🥉'];
+      const stBg = avatarBg(p.id);
       return `<div class="list-row">
         <div style="font-size:18px;width:28px;text-align:center">${i<3?medals[i]:i+1}</div>
-        <div class="bracket-avatar" style="${col?`border-color:${col.color};color:${col.color}`:''}">
-          ${escH(initials(p.name))}
+        <div class="bracket-avatar" style="${col&&!stBg?`border-color:${col.color};color:${col.color};`:''}${stBg}">
+          ${stBg?'':escH(initials(p.name))}
         </div>
         <div style="flex:1">
           <div style="font-size:15px;font-weight:600">${escH(p.name)}</div>
@@ -1364,6 +1497,10 @@ function onClick(e) {
       save(); render();
     }
   }
+  else if (a==='openPhotoCrop') openFilePicker(pid);
+  else if (a==='cancelPhotoCrop') { cropState = null; render(); }
+  else if (a==='applyPhotoCrop') doApplyPhotoCrop();
+  else if (a==='chooseNewPhoto') openFilePicker(cropState?.playerId);
   else if (a==='submitAdminAuth') doSubmitAdminAuth();
   else if (a==='closeAdminAuth') upd({adminAuthModal:false});
   else if (a==='createTournament') doCreateTournament();
