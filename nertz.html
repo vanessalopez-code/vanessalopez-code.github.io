@@ -7,6 +7,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Nertz — Vanessa's 40th</title>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,800;1,700&family=Special+Elite&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <style>
     :root {
       --bg: #ece4f4;
@@ -288,17 +290,30 @@
 <div id="app"></div>
 <script>
 // =========================================================
+// FIREBASE
+// =========================================================
+firebase.initializeApp({
+  apiKey: "AIzaSyDXRB0VzKtzVXFobJsI_EIPFMEMomvGiJs",
+  authDomain: "nertz-tournament.firebaseapp.com",
+  projectId: "nertz-tournament",
+  storageBucket: "nertz-tournament.firebasestorage.app",
+  messagingSenderId: "667105542784",
+  appId: "1:667105542784:web:6655561d7ae10f19eb5c65"
+});
+const db = firebase.firestore();
+
+// =========================================================
 // STATE
 // =========================================================
 const DEF = {
   mode: 'player',
-  screen: 'home',
+  screen: 'picker',
   adminTab: 'settings',
-  adminScreen: 'select', // 'select' | 'dashboard'
   stageFilter: 'all',
   activeGroupId: null,
   scoringModal: null,
   adminAuthModal: false,
+  pickerCreating: false,
   roundInputs: {},
   lbSort: 'wins',
   tournamentId: null,
@@ -320,56 +335,65 @@ const DEF = {
   games: [],
 };
 
-function loadTournamentIndex() {
-  try { return JSON.parse(localStorage.getItem('nertz2-index') || '[]'); } catch(e) { return []; }
-}
-function saveTournamentIndex(list) {
-  localStorage.setItem('nertz2-index', JSON.stringify(list));
-}
-
-function loadState() {
-  try {
-    const activeId = localStorage.getItem('nertz2-active');
-    if (activeId) {
-      const data = localStorage.getItem('nertz2-t-' + activeId);
-      if (data) {
-        const p = JSON.parse(data);
-        return { ...DEF, ...p, settings: { ...DEF.settings, ...(p.settings||{}) },
-          scoringModal: null, roundInputs: {}, adminAuthModal: false, adminScreen: 'select' };
-      }
-    }
-    // Migrate legacy single-tournament data
-    const s = localStorage.getItem('nertz2');
-    if (s) {
-      const p = JSON.parse(s);
-      const id = Math.random().toString(36).slice(2,9);
-      const name = p.tournamentName || "Vanessa's 40th";
-      const state = { ...DEF, ...p, settings: { ...DEF.settings, ...(p.settings||{}) },
-        scoringModal: null, roundInputs: {}, adminAuthModal: false, adminScreen: 'select',
-        tournamentId: id, tournamentName: name };
-      localStorage.setItem('nertz2-t-' + id, JSON.stringify(state));
-      localStorage.setItem('nertz2-active', id);
-      saveTournamentIndex([{ id, name, createdAt: Date.now() }]);
-      localStorage.removeItem('nertz2');
-      return state;
-    }
-  } catch(e) {}
-  return { ...DEF, settings: { ...DEF.settings }, tournamentId: Math.random().toString(36).slice(2,9), tournamentName: '' };
-}
-
-let S = loadState();
+let S = { ...DEF, settings: { ...DEF.settings } };
 let pendingSettings = null;
+let tournamentList = [];
+let unsubscribeTournament = null;
+let unsubscribeTournamentList = null;
+
+const UI_FIELDS = new Set(['mode','screen','adminTab','stageFilter','activeGroupId','scoringModal','adminAuthModal','pickerCreating','roundInputs','lbSort']);
 
 function save() {
-  if (!S.tournamentId) S.tournamentId = Math.random().toString(36).slice(2,9);
-  localStorage.setItem('nertz2-t-' + S.tournamentId, JSON.stringify(S));
+  if (!S.tournamentId) return;
+  const data = {};
+  Object.keys(S).forEach(k => { if (!UI_FIELDS.has(k)) data[k] = S[k]; });
+  db.collection('tournaments').doc(S.tournamentId).set(data).catch(e => console.error('Save error:', e));
   localStorage.setItem('nertz2-active', S.tournamentId);
-  const index = loadTournamentIndex();
-  const existing = index.find(t => t.id === S.tournamentId);
-  if (existing) { existing.name = S.tournamentName || 'Unnamed Tournament'; }
-  else { index.push({ id: S.tournamentId, name: S.tournamentName || 'Unnamed Tournament', createdAt: Date.now() }); }
-  saveTournamentIndex(index);
 }
+
+function subscribeToTournament(id) {
+  if (unsubscribeTournament) unsubscribeTournament();
+  let isFirst = true;
+  localStorage.setItem('nertz2-active', id);
+  unsubscribeTournament = db.collection('tournaments').doc(id).onSnapshot(doc => {
+    if (!doc.exists) return;
+    const data = doc.data();
+    if (isFirst) {
+      isFirst = false;
+      if (S.tournamentId === id) {
+        S = { ...S, ...data, settings: { ...DEF.settings, ...(data.settings||{}) } };
+      } else {
+        S = { ...DEF, ...data, tournamentId: id,
+          settings: { ...DEF.settings, ...(data.settings||{}) },
+          screen: 'home', mode: 'player', scoringModal: null, roundInputs: {}, adminAuthModal: false };
+      }
+    } else {
+      S = { ...S, ...data, tournamentId: id, settings: { ...DEF.settings, ...(data.settings||{}) } };
+    }
+    render();
+  }, err => console.error('Tournament listener error:', err));
+}
+
+function init() {
+  document.getElementById('app').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:12px;color:var(--muted)">
+      <div style="font-size:40px;font-family:'Playfair Display',serif;color:var(--accent)">♥</div>
+      <div style="font-family:'Special Elite',monospace;font-size:13px;letter-spacing:0.12em">Connecting...</div>
+    </div>`;
+  unsubscribeTournamentList = db.collection('tournaments').orderBy('createdAt','desc')
+    .onSnapshot(snap => {
+      tournamentList = snap.docs.map(d => ({ id: d.id, ...d.data(), name: d.data().tournamentName || 'Unnamed' }));
+      if (S.screen === 'picker') render();
+    }, err => console.error('List error:', err));
+  const lastId = localStorage.getItem('nertz2-active');
+  if (lastId) {
+    subscribeToTournament(lastId);
+  } else {
+    S = { ...DEF, settings: { ...DEF.settings } };
+    render();
+  }
+}
+
 function upd(patch) { Object.assign(S, patch); save(); render(); }
 function uid() { return Math.random().toString(36).slice(2,9); }
 
@@ -473,6 +497,7 @@ function render() {
 }
 
 function buildApp() {
+  if (S.screen === 'picker') return buildTournamentPicker();
   if (S.mode === 'admin') return buildAdmin();
   return buildPlayer();
 }
@@ -499,15 +524,16 @@ function buildPlayer() {
 
   const hdr = S.screen === 'home' ? `
     <div class="hdr"><div class="hdr-inner">
-      <div class="hdr-logo">♥ Nertz</div>
+      <button class="hdr-back" data-a="backToTournamentSelect" title="All tournaments">‹</button>
+      <div class="hdr-title">${escH(S.tournamentName || 'Tournament')}</div>
       <div class="mode-pill">
         <button class="mode-btn active">Players</button>
         <button class="mode-btn" data-a="setMode" data-v="admin">Admin</button>
       </div>
     </div></div>` : `
     <div class="hdr"><div class="hdr-inner">
-      ${needBack ? `<button class="hdr-back" data-a="back">‹</button>` : ''}
-      <div class="hdr-title">${escH(title)}</div>
+      ${needBack ? `<button class="hdr-back" data-a="back">‹</button>` : `<button class="hdr-back" data-a="backToTournamentSelect" title="All tournaments">‹</button>`}
+      <div class="hdr-title">${escH(needBack ? title : (S.tournamentName || title))}</div>
       <div class="mode-pill">
         <button class="mode-btn active">Players</button>
         <button class="mode-btn" data-a="setMode" data-v="admin">Admin</button>
@@ -935,20 +961,43 @@ function buildScoreModal() {
 // =========================================================
 // ADMIN
 // =========================================================
-function buildAdmin() {
-  if (S.adminScreen === 'select') {
-    return `
-      <div class="hdr"><div class="hdr-inner">
-        <div class="hdr-logo">♥ Admin</div>
-        <div class="mode-pill">
-          <button class="mode-btn" data-a="setMode" data-v="player">Players</button>
-          <button class="mode-btn active">Admin</button>
-        </div>
-      </div></div>
-      <div class="main no-nav">${buildAdminTournamentSelect()}</div>
-      ${S.adminAuthModal ? buildAdminAuthModal() : ''}`;
-  }
+function buildTournamentPicker() {
+  const list = [...tournamentList].sort((a,b) => b.createdAt - a.createdAt);
+  return `
+    <div class="hdr"><div class="hdr-inner">
+      <div class="hdr-logo">♥ Nertz</div>
+    </div></div>
+    <div class="main no-nav">
+      <div class="section" style="gap:16px">
+        ${S.pickerCreating ? `
+        <div class="card">
+          <div class="card-header"><div class="card-title">🎉 New Tournament</div></div>
+          <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border)">
+            <input type="text" class="input input-sm" id="new-tourney-name" placeholder="e.g. Vanessa's 40th · Round 2" autofocus>
+            <button class="btn btn-primary btn-sm" data-a="createTournament">Start Tournament</button>
+          </div>
+        </div>` : `
+        <button class="btn btn-ghost btn-full" data-a="openAdminAuth" style="font-size:13px;color:var(--muted)">⚙ Admin: Create New Tournament</button>`}
+        ${list.length ? `
+        <div class="section-title" style="padding:0">Select Tournament</div>
+        <div class="card">
+          ${list.map(t => `
+            <div class="list-row" style="cursor:pointer" data-a="selectTournament" data-id="${escH(t.id)}">
+              <div style="flex:1">
+                <div style="font-size:15px;font-weight:600">${escH(t.name || 'Unnamed Tournament')}</div>
+                <div style="font-size:12px;color:var(--muted)">${new Date(t.createdAt||0).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</div>
+              </div>
+              <div style="color:var(--border);font-size:20px">›</div>
+            </div>`).join('')}
+        </div>` : `
+        <div class="empty"><div class="empty-icon">🏆</div><p>No tournaments yet.<br>Ask the admin to create one.</p></div>`}
+      </div>
+    </div>
+    ${S.adminAuthModal ? buildAdminAuthModal() : ''}`;
+}
 
+// =========================================================
+function buildAdmin() {
   const tabs = [
     ['settings','Settings'],['players','Players'],['stages','Stages'],['standings','Standings']
   ];
@@ -973,32 +1022,6 @@ function buildAdmin() {
     ${S.adminAuthModal ? buildAdminAuthModal() : ''}`;
 }
 
-function buildAdminTournamentSelect() {
-  const index = loadTournamentIndex().sort((a,b) => b.createdAt - a.createdAt);
-  return `<div class="section" style="gap:16px">
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">🎉 New Tournament</div>
-      </div>
-      <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border)">
-        <input type="text" class="input input-sm" id="new-tourney-name" placeholder="e.g. Vanessa's 40th · Round 2">
-        <button class="btn btn-primary btn-sm" data-a="createTournament">Start Tournament</button>
-      </div>
-    </div>
-    ${index.length ? `
-    <div class="section-title" style="padding:0">Continue Existing</div>
-    <div class="card">
-      ${index.map(t => `
-        <div class="list-row" style="cursor:pointer" data-a="selectTournament" data-id="${escH(t.id)}">
-          <div style="flex:1">
-            <div style="font-size:15px;font-weight:600">${escH(t.name || 'Unnamed Tournament')}</div>
-            <div style="font-size:12px;color:var(--muted)">${new Date(t.createdAt).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</div>
-          </div>
-          <div style="color:var(--border);font-size:20px">›</div>
-        </div>`).join('')}
-    </div>` : ''}
-  </div>`;
-}
 
 function buildAdminSettings() {
   const s = pendingSettings || S.settings;
@@ -1286,6 +1309,7 @@ function onClick(e) {
 
   if (a==='setMode' && v==='admin') { upd({adminAuthModal:true}); return; }
   else if (a==='setMode') upd({mode:v, screen:'home'});
+  else if (a==='openAdminAuth') upd({adminAuthModal:true});
   else if (a==='setScreen') upd({screen:v});
   else if (a==='back') upd({screen:'scores', scoringModal:null, roundInputs:{}});
   else if (a==='setAdminTab') { pendingSettings=null; upd({adminTab:v}); }
@@ -1333,12 +1357,24 @@ function onClick(e) {
   else if (a==='submitRound') doSubmitRound(gid);
   else if (a==='completeGame') doCompleteGame(gid);
   else if (a==='endGame') doEndGame(gid);
-  else if (a==='resetAll') { if(confirm('Reset entire tournament?')) { localStorage.removeItem('nertz2'); S=loadState(); render(); } }
+  else if (a==='resetAll') {
+    if(confirm('Reset entire tournament data?')) {
+      S = { ...DEF, settings:{...DEF.settings}, tournamentId:S.tournamentId,
+            tournamentName:S.tournamentName, createdAt:S.createdAt, screen:'home', mode:'admin' };
+      save(); render();
+    }
+  }
   else if (a==='submitAdminAuth') doSubmitAdminAuth();
   else if (a==='closeAdminAuth') upd({adminAuthModal:false});
   else if (a==='createTournament') doCreateTournament();
   else if (a==='selectTournament') doSelectTournament(id);
-  else if (a==='backToTournamentSelect') upd({adminScreen:'select'});
+  else if (a==='backToTournamentSelect') {
+    pendingSettings = null;
+    if (unsubscribeTournament) { unsubscribeTournament(); unsubscribeTournament = null; }
+    localStorage.removeItem('nertz2-active');
+    S = { ...DEF, settings:{...DEF.settings} };
+    render();
+  }
 }
 
 function onChange(e) {
@@ -1584,35 +1620,39 @@ function doEndGame(gameid) {
   doCompleteGame(gameid);
 }
 
-function doCreateTournament() {
+async function doCreateTournament() {
   const inp = document.getElementById('new-tourney-name');
   const name = inp?.value.trim();
   if (!name) { if(inp){inp.focus();inp.style.borderColor='var(--red)';} return; }
-  save(); // save current tournament before switching
-  const id = uid();
-  S = { ...DEF, settings: { ...DEF.settings }, tournamentId: id, tournamentName: name, adminScreen: 'dashboard', adminAuthModal: false, mode: 'admin' };
-  save();
+  const docRef = db.collection('tournaments').doc();
+  const id = docRef.id;
+  const now = Date.now();
+  const newData = {
+    tournamentId: id, tournamentName: name, createdAt: now,
+    settings: { ...DEF.settings }, collections: [], participants: [], stages: [], groups: [], games: [],
+  };
+  S = { ...DEF, ...newData, screen: 'home', mode: 'admin', pickerCreating: false };
   render();
+  try {
+    await docRef.set(newData);
+    subscribeToTournament(id);
+  } catch(e) { alert('Failed to create tournament. Check connection.'); }
 }
 
 function doSelectTournament(id) {
-  save(); // save current before switching
-  try {
-    const data = localStorage.getItem('nertz2-t-' + id);
-    if (!data) { alert('Tournament not found.'); return; }
-    const p = JSON.parse(data);
-    S = { ...DEF, ...p, settings: { ...DEF.settings, ...(p.settings||{}) },
-      scoringModal: null, roundInputs: {}, adminAuthModal: false, adminScreen: 'dashboard', mode: 'admin' };
-    localStorage.setItem('nertz2-active', id);
-    render();
-  } catch(e) { alert('Failed to load tournament.'); }
+  pendingSettings = null;
+  subscribeToTournament(id);
 }
 
 function doSubmitAdminAuth() {
   const inp = document.getElementById('admin-pw-inp');
   const val = inp ? inp.value : '';
   if (val === '40') {
-    upd({adminAuthModal: false, mode: 'admin', screen: 'home', adminScreen: 'select'});
+    if (S.screen === 'picker') {
+      upd({ adminAuthModal: false, pickerCreating: true });
+    } else {
+      upd({ adminAuthModal: false, mode: 'admin' });
+    }
   } else {
     inp.value = '';
     inp.placeholder = 'Wrong password — try again';
@@ -1644,7 +1684,7 @@ function buildAdminAuthModal() {
 // =========================================================
 // INIT
 // =========================================================
-render();
+init();
 </script>
 </body>
 </html>
