@@ -320,6 +320,7 @@ const DEF = {
   tournamentName: '',
   settings: {
     gameSize: 4,
+    minGroupSize: 3,
     pointsToWin: 50,
     advancementMethod: 'wins',
     shuffleAfterGame: false,
@@ -487,6 +488,30 @@ function colorsForParticipant(pid) {
   const p = getPart(pid);
   if (!p || !p.collectionId) return null;
   return getCol(p.collectionId);
+}
+
+// Distribute `total` players into groups of at most `maxSize`, never smaller than `minSize`.
+// When there's a leftover smaller than minSize, borrow players from full groups
+// so the last group reaches minSize (reducing some full groups to maxSize-1).
+function distributeGroups(total, maxSize, minSize) {
+  const mn = Math.min(minSize, maxSize);
+  if (total === 0) return [];
+  if (total <= maxSize) return [total];
+  const numFull = Math.floor(total / maxSize);
+  const remainder = total % maxSize;
+  if (remainder === 0) return Array(numFull).fill(maxSize);
+  if (remainder >= mn) return [...Array(numFull).fill(maxSize), remainder];
+  // Remainder too small — borrow from full groups
+  const deficit = mn - remainder;
+  if (deficit <= numFull && maxSize - 1 >= mn) {
+    const sizes = Array(numFull).fill(maxSize);
+    for (let i = 0; i < deficit; i++) sizes[i]--;
+    return [...sizes, remainder + deficit];
+  }
+  // Fallback: simple chunking (edge case — constraints can't be satisfied)
+  const sizes = [];
+  for (let i = 0; i < total; i += maxSize) sizes.push(Math.min(maxSize, total - i));
+  return sizes;
 }
 
 function avatarBg(pid) {
@@ -1191,8 +1216,13 @@ function buildAdminSettings() {
     </div>
     <div class="divider"></div>
     <div class="field">
-      <div class="label">Players per Group</div>
+      <div class="label">Max Players per Group</div>
       <div class="seg">${[2,3,4,5].map(n=>`<button class="seg-btn ${s.gameSize===n?'active':''}" data-a="setSetting" data-k="gameSize" data-v="${n}">${n}</button>`).join('')}</div>
+    </div>
+    <div class="field">
+      <div class="label">Min Players per Group</div>
+      <div class="seg">${[2,3,4,5].map(n=>`<button class="seg-btn ${(s.minGroupSize||3)===n?'active':''}" data-a="setSetting" data-k="minGroupSize" data-v="${n}">${n}</button>`).join('')}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px">When players don't divide evenly by max, leftovers borrow from larger tables so no table goes below this size.</div>
     </div>
     <div class="field">
       <div class="label">Points to Win a Game</div>
@@ -1647,13 +1677,16 @@ function doRandomizeStage(sid) {
   });
   const newGroups = [];
   let tNum = 1;
+  const minSize = S.settings.minGroupSize || 1;
   Object.entries(byCol).forEach(([cid, pids]) => {
     const shuffled = [...pids].sort(() => Math.random() - 0.5);
-    for (let i = 0; i < shuffled.length; i += size) {
-      const chunk = shuffled.slice(i, i + size);
-      const col = cid !== '__all__' ? getCol(cid) : null;
+    const col = cid !== '__all__' ? getCol(cid) : null;
+    const sizes = distributeGroups(shuffled.length, size, minSize);
+    let pos = 0;
+    sizes.forEach(sz => {
+      const chunk = shuffled.slice(pos, pos + sz); pos += sz;
       newGroups.push({ id: uid(), stageId: stage.id, name: `Table ${tNum++}${col ? ' ('+col.name+')' : ''}`, participantIds: chunk });
-    }
+    });
   });
   S.groups = S.groups.filter(g => g.stageId !== stage.id).concat(newGroups);
   save(); render();
@@ -1674,13 +1707,16 @@ function doAutoAssignFromPrev(sid) {
   });
   const newGroups = [];
   let tNum = 1;
+  const minSize = S.settings.minGroupSize || 1;
   Object.entries(byCol).forEach(([cid, pids]) => {
     const shuffled = [...pids].sort(() => Math.random() - 0.5);
-    for (let i = 0; i < shuffled.length; i += size) {
-      const chunk = shuffled.slice(i, i + size);
-      const col = cid !== '__all__' ? getCol(cid) : null;
+    const col = cid !== '__all__' ? getCol(cid) : null;
+    const sizes = distributeGroups(shuffled.length, size, minSize);
+    let pos = 0;
+    sizes.forEach(sz => {
+      const chunk = shuffled.slice(pos, pos + sz); pos += sz;
       newGroups.push({ id: uid(), stageId: sid, name: `Table ${tNum++}${col ? ' ('+col.name+')' : ''}`, participantIds: chunk });
-    }
+    });
   });
   S.groups = S.groups.filter(g => g.stageId !== sid).concat(newGroups);
   save(); render();
@@ -1713,10 +1749,12 @@ function doGenerateFinals(sid) {
   });
   const size = S.settings.gameSize;
   const newGroups = [];
-  for (let i = 0; i < finalists.length; i += size) {
-    const chunk = finalists.slice(i, i + size);
+  const groupSizes = distributeGroups(finalists.length, size, S.settings.minGroupSize || 1);
+  let pos = 0;
+  groupSizes.forEach(sz => {
+    const chunk = finalists.slice(pos, pos + sz); pos += sz;
     newGroups.push({ id: uid(), stageId: sid, name: newGroups.length === 0 ? 'Finals' : `Finals ${newGroups.length + 1}`, participantIds: chunk });
-  }
+  });
   S.groups = S.groups.filter(g => g.stageId !== sid).concat(newGroups);
   save(); render();
 }
