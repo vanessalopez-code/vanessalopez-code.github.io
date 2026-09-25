@@ -49,7 +49,7 @@
     .bnav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: var(--surface); border-top: 1px solid var(--border); display: flex; padding-bottom: var(--sb); z-index: 100; }
     .bnav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 0; gap: 3px; font-size: 10px; font-weight: 600; color: var(--muted); cursor: pointer; border: none; background: none; transition: color 0.15s; }
     .bnav-item.active { color: var(--gold); }
-    .bnav-icon { font-size: 22px; line-height: 1; }
+    .bnav-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
 
     /* HOME SCREEN */
     .home { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -780,9 +780,9 @@ function buildPlayer() {
 
   const bnav = `
     <nav class="bnav">
-      ${bnavItem('home','🏠','Home')}
-      ${bnavItem('groups','🃏','Groups')}
-      ${bnavItem('ranking','📊','Ranking')}
+      ${bnavItem('home', navIconHome(), 'Home')}
+      ${bnavItem('groups', navIconGroups(), 'Groups')}
+      ${bnavItem('ranking', navIconTrophy(), 'Ranking')}
     </nav>`;
 
   const modal = S.scoringModal ? buildScoreModal() : '';
@@ -792,9 +792,28 @@ function buildPlayer() {
 }
 
 function bnavItem(screen, icon, label) {
-  return `<button class="bnav-item ${S.screen===screen?'active':''}" data-a="setScreen" data-v="${screen}">
-    <span class="bnav-icon">${icon}</span>${escH(label)}
+  const active = S.screen === screen;
+  return `<button class="bnav-item ${active?'active':''}" data-a="setScreen" data-v="${screen}">
+    <span class="bnav-icon" style="color:${active?'var(--accent)':'var(--muted)'}">${icon}</span>${escH(label)}
   </button>`;
+}
+function navIconHome() {
+  return `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+  </svg>`;
+}
+function navIconGroups() {
+  return `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="9" cy="7" r="3"/>
+    <path d="M9 12c-3.33 0-6 1.34-6 3v1h12v-1c0-1.66-2.67-3-6-3z"/>
+    <circle cx="17" cy="8" r="2.5"/>
+    <path d="M17 13c-1.07 0-2.07.21-2.93.56C15.24 14.22 16 15.05 16 16v1h6v-1c0-1.38-2.24-3-5-3z"/>
+  </svg>`;
+}
+function navIconTrophy() {
+  return `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M19 5h-2V3H7v2H5C3.9 5 3 5.9 3 7v1c0 2.55 1.92 4.63 4.39 4.94A5.01 5.01 0 0011 15.9V18H9v2h6v-2h-2v-2.1a5.01 5.01 0 003.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zm-2 4.17V7h2v1c0 1.29-.84 2.38-2 2.76V9.17zM5 8V7h2v2.17C5.84 8.78 5 7.69 5 8z"/>
+  </svg>`;
 }
 
 function buildHome() {
