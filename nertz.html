@@ -297,6 +297,7 @@ const DEF = {
   stageFilter: 'all',
   activeGroupId: null,
   scoringModal: null,   // { pid } | null
+  adminAuthModal: false,
   roundInputs: {},      // pid -> number | 'NA' | ''
   lbSort: 'wins',       // 'played' | 'wins' | 'points'
   settings: {
@@ -428,6 +429,9 @@ function colorsForParticipant(pid) {
 function render() {
   document.getElementById('app').innerHTML = buildApp();
   bindEvents();
+  if (S.adminAuthModal) {
+    setTimeout(() => { document.getElementById('admin-pw-inp')?.focus(); }, 50);
+  }
 }
 
 function buildApp() {
@@ -484,8 +488,9 @@ function buildPlayer() {
     </nav>`;
 
   const modal = S.scoringModal ? buildScoreModal() : '';
+  const authModal = S.adminAuthModal ? buildAdminAuthModal() : '';
 
-  return `${hdr}<div class="${mainClass}">${fn()}</div>${bnav}${modal}`;
+  return `${hdr}<div class="${mainClass}">${fn()}</div>${bnav}${modal}${authModal}`;
 }
 
 function bnavItem(screen, icon, label) {
@@ -694,6 +699,7 @@ function buildActiveScorecardView(game) {
   const over = gameIsOver(game);
   const round = S.roundInputs;
 
+  // Check which players have input for current round
   const hasRoundInput = pid => round[pid] !== undefined && round[pid] !== '';
   const allHaveInput = game.participantIds.every(pid => hasRoundInput(pid));
 
@@ -701,11 +707,13 @@ function buildActiveScorecardView(game) {
 
   let html = '';
 
+  // Round header
   html += `<div class="sc-round-info" style="padding:14px 16px 4px">
     <div class="sc-round-label">${over?'Game Over':'Round '+currentRoundNum}</div>
     <div class="sc-target">Target: ${target} pts</div>
   </div>`;
 
+  // Player tiles (current round input)
   if (!over) {
     html += `<div class="sc-players">`;
     game.participantIds.forEach(pid => {
@@ -728,11 +736,13 @@ function buildActiveScorecardView(game) {
     });
     html += `</div>`;
 
+    // Instruction
     if (!allHaveInput) {
       html += `<div style="padding:4px 16px 12px;font-size:13px;color:var(--muted)">Tap a player to enter their round score</div>`;
     }
   }
 
+  // Progress bars
   html += `<div class="sc-progress">`;
   game.participantIds.forEach(pid => {
     const p = getPart(pid);
@@ -748,6 +758,7 @@ function buildActiveScorecardView(game) {
   });
   html += `</div>`;
 
+  // Actions
   html += `<div class="sc-actions">`;
   if (over) {
     const wid = gameWinnerId(game);
@@ -762,6 +773,7 @@ function buildActiveScorecardView(game) {
   }
   html += `</div>`;
 
+  // Round history
   if (game.rounds.length > 0) {
     html += buildRoundHistory(game, cum);
   }
@@ -796,6 +808,7 @@ function buildRoundHistory(game, cum) {
     </tr>`;
   });
 
+  // Totals row
   html += `<tr class="total-row">
     <td class="round-col" style="font-weight:700">Total</td>
     ${game.participantIds.map(pid => {
@@ -904,7 +917,8 @@ function buildAdmin() {
         S.adminTab==='players'?buildAdminPlayers():
         S.adminTab==='stages'?buildAdminStages():
         buildAdminStandings()}
-    </div>`;
+    </div>
+    ${S.adminAuthModal ? buildAdminAuthModal() : ''}`;
 }
 
 function buildAdminSettings() {
@@ -1183,7 +1197,8 @@ function onClick(e) {
   const a=el.dataset.a, v=el.dataset.v, id=el.dataset.id,
         gid=el.dataset.gid, sid=el.dataset.sid, pid=el.dataset.pid;
 
-  if (a==='setMode') upd({mode:v, screen:'home'});
+  if (a==='setMode' && v==='admin') { upd({adminAuthModal:true}); return; }
+  else if (a==='setMode') upd({mode:v, screen:'home'});
   else if (a==='setScreen') upd({screen:v});
   else if (a==='back') upd({screen:'scores', scoringModal:null, roundInputs:{}});
   else if (a==='setAdminTab') upd({adminTab:v});
@@ -1222,6 +1237,8 @@ function onClick(e) {
   else if (a==='completeGame') doCompleteGame(gid);
   else if (a==='endGame') doEndGame(gid);
   else if (a==='resetAll') { if(confirm('Reset entire tournament?')) { localStorage.removeItem('nertz2'); S=loadState(); render(); } }
+  else if (a==='submitAdminAuth') doSubmitAdminAuth();
+  else if (a==='closeAdminAuth') upd({adminAuthModal:false});
 }
 
 function onChange(e) {
@@ -1238,6 +1255,7 @@ function onKey(e) {
     if (e.target.id==='col-name') { e.preventDefault(); doAddCollection(); }
     if (e.target.id==='part-name') { e.preventDefault(); doAddPlayer(); }
     if (e.target.id==='score-inp') { e.preventDefault(); doSaveScore(S.scoringModal?.pid); }
+    if (e.target.id==='admin-pw-inp') { e.preventDefault(); doSubmitAdminAuth(); }
   }
 }
 
@@ -1369,6 +1387,7 @@ function doGenerateFinals(sid) {
   if (advancers.length === 0) { alert('No advancers found from the previous stage.'); return; }
   const stats = allStats();
   const method = S.settings.advancementMethod;
+  // Take top 1 per collection among the advancers
   const byCol = {};
   advancers.forEach(pid => {
     const p = getPart(pid);
@@ -1461,6 +1480,39 @@ function doCompleteGame(gameid) {
 function doEndGame(gameid) {
   if(!confirm('End this game early? The player with the most points wins.')) return;
   doCompleteGame(gameid);
+}
+
+function doSubmitAdminAuth() {
+  const inp = document.getElementById('admin-pw-inp');
+  const val = inp ? inp.value : '';
+  if (val === '40') {
+    upd({adminAuthModal: false, mode: 'admin', screen: 'home'});
+  } else {
+    inp.value = '';
+    inp.placeholder = 'Wrong password — try again';
+    inp.style.borderColor = 'var(--red)';
+    inp.focus();
+  }
+}
+
+function buildAdminAuthModal() {
+  return `<div class="overlay" data-a="closeAdminAuth">
+    <div class="sheet" style="padding-bottom:calc(28px + var(--sb))">
+      <div class="sheet-handle"></div>
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:32px;margin-bottom:8px">🔒</div>
+        <div class="sheet-name">Admin Access</div>
+        <div class="sheet-total" style="margin-top:4px">Enter the password to continue</div>
+      </div>
+      <input type="password" id="admin-pw-inp" class="score-input-xl"
+        placeholder="Password" inputmode="numeric" autocomplete="off"
+        style="letter-spacing:0.3em;font-size:32px">
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn btn-ghost btn-full" data-a="closeAdminAuth">Cancel</button>
+        <button class="btn btn-primary btn-full" data-a="submitAdminAuth">Enter</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 // =========================================================
