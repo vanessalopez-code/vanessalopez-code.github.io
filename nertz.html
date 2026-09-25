@@ -1360,20 +1360,18 @@ function buildAdminSettings() {
     <div class="divider"></div>
     <button class="btn btn-primary btn-full" data-a="saveSettings">Save Settings</button>
     <button class="btn btn-danger btn-full btn-sm" data-a="resetAll">⚠ Reset Tournament</button>
-    ${S.stages.length > 0 ? `
     <div class="divider"></div>
     <div class="section-title">Per-Stage Settings</div>
-    <div style="font-size:12px;color:var(--muted);margin-top:-8px">Override defaults above for individual stages. Changes save immediately.</div>
-    ${S.stages.map(stage => {
-      const ssOpen = openStageSettingsPanels.has(stage.id);
-      return `<div class="card">
-        <div class="card-header" style="padding:12px 14px">
+    <div style="font-size:12px;color:var(--muted);margin-top:-8px">Override the defaults above for each individual stage. Changes save immediately — no Save button needed.</div>
+    ${S.stages.length === 0
+      ? `<div style="padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--muted);text-align:center">Add stages in the <strong>Stages</strong> tab to configure per-stage settings here.</div>`
+      : S.stages.map(stage => `<div class="card">
+        <div class="card-header" style="padding:12px 14px;border-bottom:1px solid var(--border)">
           <div class="card-title" style="font-size:14px">${escH(stage.name)}</div>
-          <button class="btn btn-ghost btn-xs" data-a="toggleStageSettings" data-sid="${stage.id}">${ssOpen ? '▲ Hide' : '▼ Configure'}</button>
         </div>
-        ${ssOpen ? `<div style="padding:12px 16px;border-top:1px solid var(--border)">${buildStageSettingsPanel(stage)}</div>` : ''}
-      </div>`;
-    }).join('')}` : ''}
+        <div style="padding:12px 16px">${buildStageSettingsPanel(stage)}</div>
+      </div>`).join('')
+    }
   </div>`;
 }
 
