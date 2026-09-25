@@ -1484,6 +1484,7 @@ function buildAdminStages() {
               </select>
               <button class="btn btn-ghost btn-sm" data-a="addToGroup" data-gid="${group.id}">Add</button>
             </div>`:''}
+            ${!active&&done.length?`<div style="margin-top:8px"><button class="btn btn-ghost btn-xs" data-a="reopenGame" data-id="${done[done.length-1].id}">↩ Reopen Last Game</button></div>`:''}
           </div>`;
         }).join('')}
 
@@ -1589,6 +1590,7 @@ function onClick(e) {
   else if (a==='markStageComplete') { const st=getStage(id); if(st){st.status='complete';save();render();} }
   else if (a==='addGroup') doAddGroup(sid);
   else if (a==='deleteGroup') doDeleteGroup(id);
+  else if (a==='reopenGame') doReopenGame(id);
   else if (a==='randomizeStage') doRandomizeStage(sid);
   else if (a==='autoAssignFromPrev') doAutoAssignFromPrev(sid);
   else if (a==='generateFinals') doGenerateFinals(sid);
@@ -1929,6 +1931,14 @@ function doCompleteGame(gameid) {
 function doEndGame(gameid) {
   if(!confirm('End this game early? The player with the most points wins.')) return;
   doCompleteGame(gameid);
+}
+function doReopenGame(gameid) {
+  if(!confirm('Reopen this game for score editing? It will become active again.')) return;
+  const game=getGame(gameid);
+  if(!game) return;
+  game.completed=false;
+  game.winnerId=null;
+  save(); render();
 }
 
 async function doCreateTournament() {
