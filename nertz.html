@@ -6,21 +6,21 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Nertz — Vanessa's 40th</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,800;1,700&family=Special+Elite&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Playfair+Display:ital,wght@0,600;0,800;1,700&family=Special+Elite&display=swap" rel="stylesheet">
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <style>
     :root {
-      --bg: #ece4f4;
-      --surface: #f7f2fc;
-      --surface2: #e2d6ef;
-      --border: #c9b5de;
-      --text: #2b1040;
-      --muted: #9880b5;
-      --accent: #c0187e;
-      --gold: #9480c4;
-      --green: #2e7d4f;
-      --red: #8b0058;
+      --bg: #c0ecf7;
+      --surface: #e0f7fd;
+      --surface2: #a2dff0;
+      --border: #62cce2;
+      --text: #0b2530;
+      --muted: #3a8fa8;
+      --accent: #f0178a;
+      --gold: #00b4c8;
+      --green: #00897b;
+      --red: #c2185b;
       --sb: env(safe-area-inset-bottom, 0px);
       --st: env(safe-area-inset-top, 0px);
     }
@@ -55,16 +55,18 @@
     .home { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 
     /* Hero — styled like the party playing card */
-    .home-hero-card { background: #fdfaf8; border: 3px solid var(--accent); border-radius: 22px; padding: 28px 20px 24px; position: relative; text-align: center; }
-    .home-hero-card::before { content: ''; position: absolute; inset: 8px; border: 1.5px dashed var(--accent); border-radius: 15px; pointer-events: none; }
+    .home-hero-card { background: var(--surface); border: 4px solid var(--gold); border-radius: 24px; padding: 28px 20px 24px; position: relative; text-align: center; box-shadow: 4px 4px 0 var(--accent), -1px -1px 0 var(--accent); }
+    .home-hero-card::before { content: ''; position: absolute; inset: 9px; border: 2px solid var(--accent); border-radius: 16px; pointer-events: none; }
     .home-hero-eyebrow { font-family: 'Special Elite', monospace; font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); line-height: 1.6; }
-    .home-hero-title { font-family: 'Playfair Display', Georgia, serif; font-size: 38px; font-weight: 800; font-style: italic; color: var(--accent); margin: 4px 0; line-height: 1.1; }
-    .home-hero-suits { font-size: 28px; color: var(--accent); letter-spacing: 6px; margin: 8px 0 4px; }
+    .home-hero-title { font-family: 'Dancing Script', cursive; font-size: 52px; font-weight: 700; color: var(--gold); margin: 4px 0; line-height: 1.1; text-shadow: 2px 2px 0 var(--accent); }
+    .home-hero-suits { font-size: 26px; letter-spacing: 6px; margin: 8px 0 4px; }
+    .home-hero-suits .s1 { color: var(--gold); }
+    .home-hero-suits .s2 { color: var(--accent); }
     .home-party-label { font-family: 'Special Elite', monospace; font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--muted); margin-top: 10px; }
-    .home-stat-pill { display: inline-block; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 4px 14px; font-family: 'Special Elite', monospace; font-size: 11px; letter-spacing: 0.06em; color: var(--muted); margin-top: 8px; }
+    .home-stat-pill { display: inline-block; background: var(--bg); border: 1px solid var(--gold); border-radius: 20px; padding: 4px 14px; font-family: 'Special Elite', monospace; font-size: 11px; letter-spacing: 0.06em; color: var(--muted); margin-top: 8px; }
 
     /* Option cards */
-    .home-card { background: #fdfaf8; border: 2px solid var(--accent); border-radius: 16px; padding: 18px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: all 0.12s; }
+    .home-card { background: var(--surface); border: 2px solid var(--border); border-radius: 16px; padding: 18px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: all 0.12s; }
     .home-card:active { background: var(--surface2); transform: scale(0.98); }
     .home-card-icon { font-size: 30px; flex-shrink: 0; }
     .home-card-body { flex: 1; }
@@ -245,14 +247,14 @@
     .gap8 { gap: 8px; }
 
     /* ── PARTY AESTHETIC OVERRIDES ── */
-    /* Cream playing-card surfaces */
-    .card, .bracket-group { background: #fdfaf8; border-color: #d8c0e8; }
-    /* Crimson-tinted header */
-    .hdr { background: #fdfaf8; border-bottom: 2px solid var(--accent); }
+    /* Baby-blue playing-card surfaces */
+    .card, .bracket-group { background: var(--surface); border-color: var(--border); }
+    /* Teal header */
+    .hdr { background: var(--surface); border-bottom: 2px solid var(--accent); }
     .hdr-logo { font-family: 'Special Elite', monospace; font-size: 16px; color: var(--accent); letter-spacing: 0.06em; }
     .hdr-title { font-family: 'Special Elite', monospace; letter-spacing: 0.04em; color: var(--accent); }
     /* Bottom nav */
-    .bnav { background: #fdfaf8; border-top: 2px solid var(--accent); }
+    .bnav { background: var(--surface); border-top: 2px solid var(--accent); }
     .bnav-item { font-family: 'Special Elite', monospace; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
     .bnav-item.active { color: var(--accent); }
     /* Section + field labels use Special Elite */
@@ -262,25 +264,25 @@
     .admin-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
     /* Stage filter + leaderboard filter */
     .sf-btn, .lb-filter { font-family: 'Special Elite', monospace; letter-spacing: 0.04em; }
-    .sf-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(192,24,126,.06); }
+    .sf-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(240,23,138,.06); }
     /* Mode pill */
     .mode-btn { font-family: 'Special Elite', monospace; font-size: 11px; letter-spacing: 0.04em; }
     /* Sheet (score modal) */
-    .sheet { background: #fdfaf8; border-top: 3px solid var(--accent); }
+    .sheet { background: var(--surface); border-top: 3px solid var(--accent); }
     .sheet-handle { background: var(--accent); opacity: 0.3; }
     .sheet-name { font-family: 'Special Elite', monospace; letter-spacing: 0.06em; }
-    /* Buttons — primary stays solid crimson; ghost gets crimson border */
+    /* Buttons — primary stays solid hot pink; ghost gets hot pink border */
     .btn-ghost { border-color: var(--accent); color: var(--accent); background: transparent; }
-    .btn-ghost:active { background: rgba(192,24,126,.06); }
+    .btn-ghost:active { background: rgba(240,23,138,.06); }
     /* Score input */
     .score-input-xl { background: var(--bg); border-color: var(--border); }
     .score-input-xl:focus { border-color: var(--accent); }
     /* Chips */
-    .chip { background: #fdfaf8; border-color: #d8c0e8; }
+    .chip { background: var(--surface); border-color: var(--border); }
     /* Bracket stage label */
     .stage-label { color: var(--accent); }
     /* Winner banner */
-    .sc-winner-banner { border-color: rgba(148,128,196,.4); color: var(--gold); background: rgba(148,128,196,.1); }
+    .sc-winner-banner { border-color: rgba(98,204,226,.4); color: var(--gold); background: rgba(98,204,226,.1); }
     /* Progress bar */
     .sc-progress-fill { background: var(--accent); }
     .sc-progress-fill.hit { background: var(--gold); }
@@ -816,7 +818,7 @@ function buildHome() {
     <div class="home-hero-card">
       <div class="home-hero-eyebrow">Friends Who</div>
       <div class="home-hero-title">Nertz Together</div>
-      <div class="home-hero-suits">♥ ♦ ♠ ♣</div>
+      <div class="home-hero-suits"><span class="s1">♥</span> <span class="s2">♦</span> <span class="s1">♠</span> <span class="s2">♣</span></div>
       <div class="home-hero-eyebrow">Stay Together</div>
       <div class="home-party-label">${escH(S.tournamentName || "Vanessa's 40th")}</div>
       <div class="home-stat-pill">${statText}</div>
