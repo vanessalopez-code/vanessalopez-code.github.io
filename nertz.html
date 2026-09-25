@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Nertz — Vanessa's 40th</title>
-  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <style>
@@ -27,7 +27,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     html, body { height: 100%; overscroll-behavior: none; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 16px; line-height: 1.4; }
-    h1, h2, .hdr-logo, .home-hero h1 { font-family: 'Playfair Display', Georgia, serif; }
+    h1, h2, .hdr-logo, .home-hero h1 { font-family: 'Nunito', sans-serif; }
 
     #app { max-width: 480px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; }
 
@@ -57,20 +57,20 @@
     /* Hero — styled like the party playing card */
     .home-hero-card { background: var(--surface); border: 4px solid var(--gold); border-radius: 24px; padding: 28px 20px 24px; position: relative; text-align: center; box-shadow: 4px 4px 0 var(--accent), -1px -1px 0 var(--accent); }
     .home-hero-card::before { content: ''; position: absolute; inset: 9px; border: 2px solid var(--accent); border-radius: 16px; pointer-events: none; }
-    .home-hero-eyebrow { font-family: 'Playfair Display', serif; font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); line-height: 1.6; }
+    .home-hero-eyebrow { font-family: 'Nunito', sans-serif; font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); line-height: 1.6; }
     .home-hero-title { font-family: 'Dancing Script', cursive; font-size: 52px; font-weight: 700; color: var(--gold); margin: 4px 0; line-height: 1.1; text-shadow: 2px 2px 0 var(--accent); }
     .home-hero-suits { font-size: 26px; letter-spacing: 6px; margin: 8px 0 4px; }
     .home-hero-suits .s1 { color: var(--gold); }
     .home-hero-suits .s2 { color: var(--accent); }
-    .home-party-label { font-family: 'Playfair Display', serif; font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--muted); margin-top: 10px; }
-    .home-stat-pill { display: inline-block; background: var(--bg); border: 1px solid var(--gold); border-radius: 20px; padding: 4px 14px; font-family: 'Playfair Display', serif; font-size: 11px; letter-spacing: 0.06em; color: var(--muted); margin-top: 8px; }
+    .home-party-label { font-family: 'Nunito', sans-serif; font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--muted); margin-top: 10px; }
+    .home-stat-pill { display: inline-block; background: var(--bg); border: 1px solid var(--gold); border-radius: 20px; padding: 4px 14px; font-family: 'Nunito', sans-serif; font-size: 11px; letter-spacing: 0.06em; color: var(--muted); margin-top: 8px; }
 
     /* Option cards */
     .home-card { background: var(--surface); border: 2px solid var(--border); border-radius: 16px; padding: 18px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: all 0.12s; }
     .home-card:active { background: var(--surface2); transform: scale(0.98); }
     .home-card-icon { font-size: 30px; flex-shrink: 0; }
     .home-card-body { flex: 1; }
-    .home-card-body h2 { font-family: 'Playfair Display', serif; font-size: 16px; letter-spacing: 0.04em; color: var(--accent); }
+    .home-card-body h2 { font-family: 'Nunito', sans-serif; font-size: 16px; letter-spacing: 0.04em; color: var(--accent); }
     .home-card-body p { font-size: 12px; color: var(--muted); margin-top: 3px; }
     .home-card-arrow { color: var(--accent); font-size: 20px; font-weight: 300; }
 
@@ -251,26 +251,26 @@
     .card, .bracket-group { background: var(--surface); border-color: var(--border); }
     /* Teal header */
     .hdr { background: var(--surface); border-bottom: 2px solid var(--accent); }
-    .hdr-logo { font-family: 'Playfair Display', serif; font-size: 16px; color: var(--accent); letter-spacing: 0.06em; }
-    .hdr-title { font-family: 'Playfair Display', serif; letter-spacing: 0.04em; color: var(--accent); }
+    .hdr-logo { font-family: 'Nunito', sans-serif; font-size: 16px; color: var(--accent); letter-spacing: 0.06em; }
+    .hdr-title { font-family: 'Nunito', sans-serif; letter-spacing: 0.04em; color: var(--accent); }
     /* Bottom nav */
     .bnav { background: var(--surface); border-top: 2px solid var(--accent); }
-    .bnav-item { font-family: 'Playfair Display', serif; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .bnav-item { font-family: 'Nunito', sans-serif; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
     .bnav-item.active { color: var(--accent); }
-    /* Section + field labels use Playfair Display */
-    .section-title, .label, .stage-label { font-family: 'Playfair Display', serif; letter-spacing: 0.1em; }
+    /* Section + field labels use Nunito */
+    .section-title, .label, .stage-label { font-family: 'Nunito', sans-serif; letter-spacing: 0.1em; }
     /* Admin tabs */
-    .admin-tab { font-family: 'Playfair Display', serif; letter-spacing: 0.06em; }
+    .admin-tab { font-family: 'Nunito', sans-serif; letter-spacing: 0.06em; }
     .admin-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
     /* Stage filter + leaderboard filter */
-    .sf-btn, .lb-filter { font-family: 'Playfair Display', serif; letter-spacing: 0.04em; }
+    .sf-btn, .lb-filter { font-family: 'Nunito', sans-serif; letter-spacing: 0.04em; }
     .sf-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(240,23,138,.06); }
     /* Mode pill */
-    .mode-btn { font-family: 'Playfair Display', serif; font-size: 11px; letter-spacing: 0.04em; }
+    .mode-btn { font-family: 'Nunito', sans-serif; font-size: 11px; letter-spacing: 0.04em; }
     /* Sheet (score modal) */
     .sheet { background: var(--surface); border-top: 3px solid var(--accent); }
     .sheet-handle { background: var(--accent); opacity: 0.3; }
-    .sheet-name { font-family: 'Playfair Display', serif; letter-spacing: 0.06em; }
+    .sheet-name { font-family: 'Nunito', sans-serif; letter-spacing: 0.06em; }
     /* Buttons — primary stays solid hot pink; ghost gets hot pink border */
     .btn-ghost { border-color: var(--accent); color: var(--accent); background: transparent; }
     .btn-ghost:active { background: rgba(240,23,138,.06); }
@@ -387,8 +387,8 @@ function subscribeToTournament(id) {
 function init() {
   document.getElementById('app').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:12px;color:var(--muted)">
-      <div style="font-size:40px;font-family:'Playfair Display',serif;color:var(--accent)">♥</div>
-      <div style="font-family:'Playfair Display',serif;font-size:13px;letter-spacing:0.12em">Connecting...</div>
+      <div style="font-size:40px;font-family:'Nunito',sans-serif;color:var(--accent)">♥</div>
+      <div style="font-family:'Nunito',sans-serif;font-size:13px;letter-spacing:0.12em">Connecting...</div>
     </div>`;
   unsubscribeTournamentList = db.collection('tournaments').orderBy('createdAt','desc')
     .onSnapshot(snap => {
@@ -891,7 +891,7 @@ function buildGroups() {
 
     html += `<div class="card" style="padding:0;overflow:hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;border-bottom:1px solid var(--border)">
-        <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700">${escH(group.name)}</div>
+        <div style="font-family:'Nunito',sans-serif;font-size:14px;font-weight:700">${escH(group.name)}</div>
         ${statusBadge}
       </div>`;
 
