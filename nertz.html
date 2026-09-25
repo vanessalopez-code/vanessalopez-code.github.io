@@ -328,7 +328,7 @@ const DEF = {
     firstStageAssignment: 'manual',
     laterStageAssignment: 'collection',
     finalsAssignment: 'auto',
-    advancersPerGroup: 1,
+    advancersPerCollection: 1,
   },
   collections: [],
   participants: [],
@@ -1259,8 +1259,9 @@ function buildAdminSettings() {
       <input type="number" class="input" value="${s.pointsToWin}" data-a="setSettingNum" data-k="pointsToWin" inputmode="numeric" min="1">
     </div>
     <div class="field">
-      <div class="label">Players Advancing Per Group</div>
-      <div class="seg">${[1,2,3].map(n=>`<button class="seg-btn ${s.advancersPerGroup===n?'active':''}" data-a="setSetting" data-k="advancersPerGroup" data-v="${n}">${n}</button>`).join('')}</div>
+      <div class="label">Players Advancing Per Collection</div>
+      <div class="seg">${[1,2,3,4,5].map(n=>`<button class="seg-btn ${(s.advancersPerCollection??s.advancersPerGroup??1)===n?'active':''}" data-a="setSetting" data-k="advancersPerCollection" data-v="${n}">${n}</button>`).join('')}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px">Top players across all tables in a collection advance together and play each other in the next stage.</div>
     </div>
     <div class="field">
       <div class="label">Advancement Determined By</div>
@@ -1686,13 +1687,23 @@ function doDeleteGroup(id) {
   save(); render();
 }
 function getStageAdvancers(stageId) {
-  const groups = S.groups.filter(g => g.stageId === stageId);
+  // Collect all participants across active groups in this stage
+  const stageGroups = activeGroupsForStage(stageId);
+  const allPids = [...new Set(stageGroups.flatMap(g => g.participantIds))];
   const method = S.settings.advancementMethod;
-  const n = S.settings.advancersPerGroup;
+  const n = S.settings.advancersPerCollection ?? S.settings.advancersPerGroup ?? 1;
   const stats = allStats();
+
+  // Group participants by collection, then pick top N from each collection
+  const byCol = {};
+  allPids.forEach(pid => {
+    const p = getPart(pid);
+    const k = p?.collectionId || '__all__';
+    (byCol[k] = byCol[k]||[]).push(pid);
+  });
   const advancers = [];
-  groups.forEach(group => {
-    const ranked = [...group.participantIds].sort((a, b) => {
+  Object.values(byCol).forEach(pids => {
+    const ranked = [...pids].sort((a, b) => {
       const sa = stats[a]||{}, sb = stats[b]||{};
       return method === 'wins'
         ? (sb.gamesWon-sa.gamesWon)||(sb.totalPoints-sa.totalPoints)
@@ -1700,7 +1711,7 @@ function getStageAdvancers(stageId) {
     });
     advancers.push(...ranked.slice(0, n));
   });
-  return [...new Set(advancers)];
+  return advancers;
 }
 
 function doRandomizeStage(sid) {
