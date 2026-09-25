@@ -59,11 +59,12 @@
     .home-hero-card::before { content: ''; position: absolute; inset: 9px; border: 2px solid var(--accent); border-radius: 16px; pointer-events: none; }
     .home-hero-eyebrow { font-family: 'Nunito', sans-serif; font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); line-height: 1.6; }
     .home-hero-title { font-family: 'Dancing Script', cursive; font-size: 52px; font-weight: 700; color: var(--gold); margin: 4px 0; line-height: 1.1; text-shadow: 2px 2px 0 var(--accent); }
-    .home-hero-suits { font-size: 26px; letter-spacing: 6px; margin: 8px 0 4px; }
+    .home-hero-suits { font-size: 26px; letter-spacing: 6px; margin: 8px 0 0; }
     .home-hero-suits .s1 { color: var(--gold); }
     .home-hero-suits .s2 { color: var(--accent); }
-    .home-party-label { font-family: 'Nunito', sans-serif; font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--muted); margin-top: 10px; }
-    .home-stat-pill { display: inline-block; background: var(--bg); border: 1px solid var(--gold); border-radius: 20px; padding: 4px 14px; font-family: 'Nunito', sans-serif; font-size: 11px; letter-spacing: 0.06em; color: var(--muted); margin-top: 8px; }
+    .home-info-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px 16px; text-align: center; }
+    .home-info-name { font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: 0.04em; }
+    .home-info-stat { font-size: 11px; color: var(--muted); margin-top: 3px; }
 
     /* Option cards */
     .home-card { background: var(--surface); border: 2px solid var(--border); border-radius: 16px; padding: 18px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: all 0.12s; }
@@ -769,7 +770,7 @@ function buildPlayer() {
   const hdr = `
     <div class="hdr"><div class="hdr-inner">
       <button class="hdr-back" data-a="backToTournamentSelect" title="All tournaments">‹</button>
-      <div class="hdr-title">${escH(S.tournamentName || 'Tournament')}</div>
+      <div class="hdr-title">Nertz</div>
       <div class="mode-pill">
         <button class="mode-btn active">Players</button>
         <button class="mode-btn" data-a="setMode" data-v="admin">Admin</button>
@@ -827,16 +828,18 @@ function buildHome() {
     <div class="home-hero-card">
       <div class="home-hero-eyebrow">Friends Who</div>
       <div class="home-hero-title">Nertz Together</div>
-      <div class="home-hero-suits"><span class="s1">♥</span> <span class="s2">♦</span> <span class="s1">♠</span> <span class="s2">♣</span></div>
       <div class="home-hero-eyebrow">Stay Together</div>
-      <div class="home-party-label">${escH(S.tournamentName || "Vanessa's 40th")}</div>
-      <div class="home-stat-pill">${statText}</div>
+      <div class="home-hero-suits"><span class="s1">♥</span> <span class="s2">♦</span> <span class="s1">♠</span> <span class="s2">♣</span></div>
+    </div>
+    <div class="home-info-card">
+      <div class="home-info-name">${escH(S.tournamentName || "Vanessa's 40th")}</div>
+      <div class="home-info-stat">${statText}</div>
     </div>
     <div class="home-card" data-a="setScreen" data-v="groups">
       <div class="home-card-icon">${navIconGroups(28)}</div>
       <div class="home-card-body">
         <h2>Groups</h2>
-        <p>View groups and enter scores round by round</p>
+        <p>View groups and enter scores</p>
       </div>
       <div class="home-card-arrow">›</div>
     </div>
@@ -844,7 +847,7 @@ function buildHome() {
       <div class="home-card-icon">${navIconTrophy(28)}</div>
       <div class="home-card-body">
         <h2>Ranking</h2>
-        <p>Player standings — wins, points &amp; games played</p>
+        <p>Player standings</p>
       </div>
       <div class="home-card-arrow">›</div>
     </div>
@@ -1441,88 +1444,44 @@ function buildAdmin() {
 
 
 function buildAdminSettings() {
-  const s = pendingSettings || S.settings;
   const dirty = pendingSettings !== null;
+  const curName = dirty ? (pendingSettings._name ?? S.tournamentName) : S.tournamentName;
+  const totalStages = S.stages.length;
+
   return `<div class="section">
-    ${dirty ? `<div style="background:rgba(192,24,126,.1);border:1px solid rgba(192,24,126,.3);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--accent);font-weight:600;">Unsaved changes</div>` : ''}
-    <div class="field">
-      <div class="label">Tournament Name</div>
-      <input type="text" class="input" id="settings-name-inp" value="${escH(dirty ? (pendingSettings._name ?? S.tournamentName) : S.tournamentName)||''}" data-a="setTournamentName" placeholder="Tournament name">
-    </div>
-    <div class="divider"></div>
-    <div class="field">
-      <div class="label">Max Players per Group</div>
-      <div class="seg">${[2,3,4,5].map(n=>`<button class="seg-btn ${s.gameSize===n?'active':''}" data-a="setSetting" data-k="gameSize" data-v="${n}">${n}</button>`).join('')}</div>
-    </div>
-    <div class="field">
-      <div class="label">Min Players per Group</div>
-      <div class="seg">${[2,3,4,5].map(n=>`<button class="seg-btn ${(s.minGroupSize||3)===n?'active':''}" data-a="setSetting" data-k="minGroupSize" data-v="${n}">${n}</button>`).join('')}</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:2px">When players don't divide evenly by max, leftovers borrow from larger tables so no table goes below this size.</div>
-    </div>
-    <div class="field">
-      <div class="label">Games Per Stage</div>
-      <div class="seg">${[1,2,3,4,5].map(n=>`<button class="seg-btn ${(s.gamesPerStage||1)===n?'active':''}" data-a="setSetting" data-k="gamesPerStage" data-v="${n}">${n}</button>`).join('')}</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:2px">Players play this many games per stage before advancement is calculated. Pair with "After Each Game" to control whether groups shuffle between games.</div>
-    </div>
-    <div class="field">
-      <div class="label">Points to Win a Game</div>
-      <input type="number" class="input" value="${s.pointsToWin}" data-a="setSettingNum" data-k="pointsToWin" inputmode="numeric" min="1">
-    </div>
-    <div class="field">
-      <div class="label">Players Advancing Per Collection</div>
-      <div class="seg">${[1,2,3,4,5].map(n=>`<button class="seg-btn ${(s.advancersPerCollection??s.advancersPerGroup??1)===n?'active':''}" data-a="setSetting" data-k="advancersPerCollection" data-v="${n}">${n}</button>`).join('')}</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:2px">Top players across all tables in a collection advance together and play each other in the next stage.</div>
-    </div>
-    <div class="field">
-      <div class="label">Advancement Determined By</div>
-      <div class="seg">
-        <button class="seg-btn ${s.advancementMethod==='wins'?'active':''}" data-a="setSetting" data-k="advancementMethod" data-v="wins">Most Wins</button>
-        <button class="seg-btn ${s.advancementMethod==='points'?'active':''}" data-a="setSetting" data-k="advancementMethod" data-v="points">Most Points</button>
-      </div>
-    </div>
-    <div class="field">
-      <div class="label">Stage 1 Assignment</div>
-      <div class="seg">
-        <button class="seg-btn ${s.firstStageAssignment==='manual'?'active':''}" data-a="setSetting" data-k="firstStageAssignment" data-v="manual">Manual</button>
-        <button class="seg-btn ${s.firstStageAssignment==='random'?'active':''}" data-a="setSetting" data-k="firstStageAssignment" data-v="random">Random</button>
-      </div>
-    </div>
-    <div class="field">
-      <div class="label">Later Stages Assignment</div>
-      <div class="seg">
-        <button class="seg-btn ${s.laterStageAssignment==='manual'?'active':''}" data-a="setSetting" data-k="laterStageAssignment" data-v="manual">Manual</button>
-        <button class="seg-btn ${s.laterStageAssignment==='collection'?'active':''}" data-a="setSetting" data-k="laterStageAssignment" data-v="collection">By Collection</button>
-      </div>
-    </div>
-    <div class="field">
-      <div class="label">Finals Assignment</div>
-      <div class="seg">
-        <button class="seg-btn ${s.finalsAssignment==='manual'?'active':''}" data-a="setSetting" data-k="finalsAssignment" data-v="manual">Manual</button>
-        <button class="seg-btn ${s.finalsAssignment==='auto'?'active':''}" data-a="setSetting" data-k="finalsAssignment" data-v="auto">Auto-generate</button>
-      </div>
-    </div>
-    <div class="field">
-      <div class="label">After Each Game</div>
-      <div class="seg">
-        <button class="seg-btn ${!s.shuffleAfterGame?'active':''}" data-a="setSetting" data-k="shuffleAfterGame" data-v="false">Keep Group</button>
-        <button class="seg-btn ${s.shuffleAfterGame?'active':''}" data-a="setSetting" data-k="shuffleAfterGame" data-v="true">Shuffle</button>
-      </div>
-    </div>
-    <div class="divider"></div>
-    <button class="btn btn-primary btn-full" data-a="saveSettings">Save Settings</button>
-    <button class="btn btn-danger btn-full btn-sm" data-a="resetAll">⚠ Reset Tournament</button>
-    <div class="divider"></div>
-    <div class="section-title">Per-Stage Settings</div>
-    <div style="font-size:12px;color:var(--muted);margin-top:-8px">Override the defaults above for each individual stage. Changes save immediately — no Save button needed.</div>
-    ${S.stages.length === 0
-      ? `<div style="padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--muted);text-align:center">Add stages in the <strong>Stages</strong> tab to configure per-stage settings here.</div>`
-      : S.stages.map(stage => `<div class="card">
-        <div class="card-header" style="padding:12px 14px;border-bottom:1px solid var(--border)">
-          <div class="card-title" style="font-size:14px">${escH(stage.name)}</div>
+    ${dirty ? `<div style="background:rgba(240,23,138,.1);border:1px solid rgba(240,23,138,.3);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--accent);font-weight:600;">Unsaved changes</div>` : ''}
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Tournament</div></div>
+      <div style="padding:12px 16px;display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--border)">
+        <div class="field">
+          <div class="label">Tournament Name</div>
+          <input type="text" class="input" id="settings-name-inp" value="${escH(curName)||''}" placeholder="Tournament name">
         </div>
-        <div style="padding:12px 16px">${buildStageSettingsPanel(stage)}</div>
-      </div>`).join('')
+        <div class="field">
+          <div class="label">Number of Stages</div>
+          <div class="seg">${[1,2,3,4,5].map(n=>`<button class="seg-btn ${totalStages===n?'active':''}" data-a="setTotalStages" data-v="${n}">${n}</button>`).join('')}</div>
+        </div>
+        <button class="btn btn-primary btn-sm" data-a="saveSettings">Save</button>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-title">Stage Settings</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:-8px;margin-bottom:4px">Configure each stage independently. Changes save immediately.</div>
+
+    ${totalStages === 0
+      ? `<div style="padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--muted);text-align:center">Set the number of stages above to get started.</div>`
+      : S.stages.map(stage => `<div class="card">
+          <div class="card-header" style="padding:12px 14px;border-bottom:1px solid var(--border)">
+            <div class="card-title" style="font-size:14px">${escH(stage.name)}</div>
+          </div>
+          <div style="padding:12px 16px">${buildStageSettingsPanel(stage)}</div>
+        </div>`).join('')
     }
+
+    <div class="divider"></div>
+    <button class="btn btn-danger btn-full btn-sm" data-a="resetAll">⚠ Reset Tournament</button>
   </div>`;
 }
 
@@ -1636,33 +1595,32 @@ function groupStatusBadge(status) {
 function buildStageSettingsPanel(stage) {
   const ss = getStageSettings(stage.id);
   const sid = stage.id;
-  const def = (k) => (stage.settings || {})[k] === undefined ? ' <span style="font-size:10px;color:var(--muted)">(global)</span>' : '';
-  return `<div style="margin-top:10px;display:flex;flex-direction:column;gap:12px">
+  return `<div style="display:flex;flex-direction:column;gap:12px">
     <div class="field">
-      <div class="label" style="font-size:11px">Max Players/Group${def('gameSize')}</div>
+      <div class="label" style="font-size:11px">Max Players/Group</div>
       <div class="seg">${[2,3,4,5].map(n=>`<button class="seg-btn ${ss.gameSize===n?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="gameSize" data-v="${n}">${n}</button>`).join('')}</div>
     </div>
     <div class="field">
-      <div class="label" style="font-size:11px">Min Players/Group${def('minGroupSize')}</div>
+      <div class="label" style="font-size:11px">Min Players/Group</div>
       <div class="seg">${[2,3,4,5].map(n=>`<button class="seg-btn ${ss.minGroupSize===n?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="minGroupSize" data-v="${n}">${n}</button>`).join('')}</div>
     </div>
     <div class="field">
-      <div class="label" style="font-size:11px">Games per Stage${def('gamesPerStage')}</div>
+      <div class="label" style="font-size:11px">Games per Stage</div>
       <div class="seg">${[1,2,3,4,5].map(n=>`<button class="seg-btn ${ss.gamesPerStage===n?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="gamesPerStage" data-v="${n}">${n}</button>`).join('')}</div>
     </div>
     <div class="field">
-      <div class="label" style="font-size:11px">Points to Win${def('pointsToWin')}</div>
+      <div class="label" style="font-size:11px">Points to Win</div>
       <input type="number" class="input input-sm" value="${ss.pointsToWin}" data-a="setStageSettingNum" data-sid="${sid}" data-k="pointsToWin" inputmode="numeric" min="1">
     </div>
     <div class="field">
-      <div class="label" style="font-size:11px">After Each Game${def('shuffleAfterGame')}</div>
+      <div class="label" style="font-size:11px">After Each Game</div>
       <div class="seg">
         <button class="seg-btn ${!ss.shuffleAfterGame?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="shuffleAfterGame" data-v="false">Keep Group</button>
         <button class="seg-btn ${ss.shuffleAfterGame?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="shuffleAfterGame" data-v="true">Shuffle</button>
       </div>
     </div>
     <div class="field">
-      <div class="label" style="font-size:11px">Collections${def('mixCollections')}</div>
+      <div class="label" style="font-size:11px">Collections</div>
       <div class="seg">
         <button class="seg-btn ${!ss.mixCollections?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="mixCollections" data-v="false">Stay Separated</button>
         <button class="seg-btn ${ss.mixCollections?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="mixCollections" data-v="true">Mix Together</button>
@@ -1670,18 +1628,18 @@ function buildStageSettingsPanel(stage) {
     </div>
     ${!ss.isFinal ? `
     <div class="field">
-      <div class="label" style="font-size:11px">Advancement Method${def('advancementMethod')}</div>
+      <div class="label" style="font-size:11px">Advancement Method</div>
       <div class="seg">
         <button class="seg-btn ${ss.advancementMethod==='wins'?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="advancementMethod" data-v="wins">Most Wins</button>
         <button class="seg-btn ${ss.advancementMethod==='points'?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="advancementMethod" data-v="points">Most Points</button>
       </div>
     </div>
     <div class="field">
-      <div class="label" style="font-size:11px">Players Advancing/Collection${def('advancersPerCollection')}</div>
+      <div class="label" style="font-size:11px">Players Advancing/Collection</div>
       <div class="seg">${[1,2,3,4,5].map(n=>`<button class="seg-btn ${ss.advancersPerCollection===n?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="advancersPerCollection" data-v="${n}">${n}</button>`).join('')}</div>
     </div>` : ''}
     <div class="field">
-      <div class="label" style="font-size:11px">Stage Type${def('isFinal')}</div>
+      <div class="label" style="font-size:11px">Stage Type</div>
       <div class="seg">
         <button class="seg-btn ${!ss.isFinal?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="isFinal" data-v="false">Advance Players</button>
         <button class="seg-btn ${ss.isFinal?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="isFinal" data-v="true">Final Stage</button>
@@ -1701,7 +1659,7 @@ function buildAdminStages() {
       ${!canAdd ? `<div style="font-size:12px;color:var(--muted);margin-top:6px">Complete all games in ${escH(lastStage.name)} to unlock the next stage.</div>` : ''}
     </div>
 
-    ${totalStages===0?`<div class="empty"><div class="empty-icon">🏆</div><p>Add a stage to get started. Configure per-stage settings in the Settings tab.</p></div>`:''}
+    ${totalStages===0?`<div class="empty"><div class="empty-icon">🏆</div><p>Set the number of stages in the Settings tab to get started.</p></div>`:''}
 
     ${S.stages.map((stage, stageIdx) => {
       const ss = getStageSettings(stage.id);
@@ -1880,6 +1838,7 @@ function onClick(e) {
   else if (a==='deletePlayer') doDeletePlayer(id);
   else if (a==='addStage') doAddStage();
   else if (a==='deleteStage') doDeleteStage(id);
+  else if (a==='setTotalStages') doSetTotalStages(parseInt(v));
   else if (a==='toggleStageSettings') {
     if (openStageSettingsPanels.has(sid)) openStageSettingsPanels.delete(sid);
     else openStageSettingsPanels.add(sid);
@@ -2007,6 +1966,27 @@ function doDeleteStage(id) {
   S.games=S.games.filter(g=>!gids.includes(g.groupId));
   S.groups=S.groups.filter(g=>g.stageId!==id);
   S.stages=S.stages.filter(s=>s.id!==id);
+  save(); render();
+}
+function doSetTotalStages(n) {
+  const cur = S.stages.length;
+  if (n > cur) {
+    for (let i = cur; i < n; i++) {
+      S.stages.push({ id: uid(), number: i + 1, name: `Stage ${i + 1}`, status: 'active' });
+    }
+  } else if (n < cur) {
+    // Only remove stages that have no game data
+    for (let i = cur - 1; i >= n; i--) {
+      const st = S.stages[i];
+      const hasData = S.groups.some(g => g.stageId === st.id);
+      if (!hasData) {
+        S.stages.splice(i, 1);
+      } else {
+        alert(`Stage ${i + 1} has groups and cannot be removed.`);
+        break;
+      }
+    }
+  }
   save(); render();
 }
 function doAddGroup(stageId) {
