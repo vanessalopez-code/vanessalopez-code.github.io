@@ -333,7 +333,6 @@ const DEF = {
   stages: [],
   groups: [],
   games: [],
-  playerPhotos: {},
 };
 
 let S = { ...DEF, settings: { ...DEF.settings } };
@@ -342,6 +341,7 @@ let tournamentList = [];
 let unsubscribeTournament = null;
 let unsubscribeTournamentList = null;
 let cropState = null;
+let photoCache = {};
 
 const UI_FIELDS = new Set(['mode','screen','adminTab','stageFilter','activeGroupId','scoringModal','adminAuthModal','pickerCreating','roundInputs','lbSort']);
 
@@ -362,6 +362,7 @@ function subscribeToTournament(id) {
     const data = doc.data();
     if (isFirst) {
       isFirst = false;
+      photoCache = {};
       if (S.tournamentId === id) {
         S = { ...S, ...data, settings: { ...DEF.settings, ...(data.settings||{}) } };
       } else {
@@ -369,6 +370,7 @@ function subscribeToTournament(id) {
           settings: { ...DEF.settings, ...(data.settings||{}) },
           screen: 'home', mode: 'player', scoringModal: null, roundInputs: {}, adminAuthModal: false };
       }
+      setTimeout(() => loadPhotos(id), 0);
     } else {
       S = { ...S, ...data, tournamentId: id, settings: { ...DEF.settings, ...(data.settings||{}) } };
     }
@@ -488,9 +490,34 @@ function colorsForParticipant(pid) {
 }
 
 function avatarBg(pid) {
-  const photo = S.playerPhotos && S.playerPhotos[pid];
+  const photo = photoCache[pid];
   if (!photo) return '';
   return `background-image:url(${photo});background-size:cover;background-position:center;color:transparent;`;
+}
+
+function loadPhotos(tid) {
+  if (!tid || !S.participants.length) return;
+  const promises = S.participants.map(p =>
+    db.collection('playerPhotos').doc(tid + '_' + p.id).get()
+  );
+  Promise.all(promises).then(docs => {
+    let updated = false;
+    docs.forEach(doc => {
+      if (doc.exists && doc.data().photo) {
+        const pid = doc.id.replace(tid + '_', '');
+        photoCache[pid] = doc.data().photo;
+        updated = true;
+      }
+    });
+    if (updated) render();
+  }).catch(e => console.error('Photo load error:', e));
+}
+
+function savePhotoToFirestore(pid, dataUrl) {
+  if (!S.tournamentId) return;
+  db.collection('playerPhotos').doc(S.tournamentId + '_' + pid)
+    .set({ photo: dataUrl, updatedAt: Date.now() })
+    .catch(e => console.error('Photo save error:', e));
 }
 
 function openFilePicker(pid) {
@@ -574,8 +601,9 @@ function doApplyPhotoCrop() {
   const dataUrl = out.toDataURL('image/jpeg', 0.82);
   const pid = cropState.playerId;
   cropState = null;
-  S.playerPhotos = { ...(S.playerPhotos||{}), [pid]: dataUrl };
-  save(); render();
+  photoCache[pid] = dataUrl;
+  savePhotoToFirestore(pid, dataUrl);
+  render();
 }
 
 function buildPhotoCropModal() {
@@ -1462,6 +1490,9 @@ function onClick(e) {
     S.tournamentName=name||S.tournamentName;
     pendingSettings=null;
     save(); render();
+    // Flash confirmation
+    const btn=document.querySelector('[data-a="saveSettings"]');
+    if(btn){const orig=btn.textContent;btn.textContent='✓ Saved!';btn.style.opacity='0.7';setTimeout(()=>{btn.textContent=orig;btn.style.opacity='';},1500);}
   }
   else if (a==='toggleForm') {
     const f=document.getElementById(el.dataset.f);
@@ -1507,6 +1538,7 @@ function onClick(e) {
   else if (a==='selectTournament') doSelectTournament(id);
   else if (a==='backToTournamentSelect') {
     pendingSettings = null;
+    photoCache = {};
     if (unsubscribeTournament) { unsubscribeTournament(); unsubscribeTournament = null; }
     localStorage.removeItem('nertz2-active');
     S = { ...DEF, settings:{...DEF.settings} };
