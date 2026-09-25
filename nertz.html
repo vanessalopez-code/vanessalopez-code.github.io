@@ -1205,7 +1205,7 @@ function buildAdminStages() {
               ${group.participantIds.map(pid=>{
                 const p=getPart(pid);
                 const col=p?.collectionId?getCol(p.collectionId):null;
-                return `<div class="chip">${col?`<span class="chip-dot" style="background:${col.color}"></span>`:''|}${escH(p?.name||'?')}${isManual?`<button class="btn-icon" data-a="removeFromGroup" data-gid="${group.id}" data-pid="${pid}" style="font-size:12px;padding:0 2px">×</button>`:''}</div>`;
+                return `<div class="chip">${col?`<span class="chip-dot" style="background:${col.color}"></span>`:''}${escH(p?.name||'?')}${isManual?`<button class="btn-icon" data-a="removeFromGroup" data-gid="${group.id}" data-pid="${pid}" style="font-size:12px;padding:0 2px">×</button>`:''}</div>`;
               }).join('')}
             </div>
             ${isManual&&ua.length>0?`<div style="margin-top:8px;display:flex;gap:6px">
