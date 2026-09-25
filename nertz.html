@@ -291,47 +291,84 @@
 // STATE
 // =========================================================
 const DEF = {
-  mode: 'player',       // 'player' | 'admin'
-  screen: 'home',       // player screens
+  mode: 'player',
+  screen: 'home',
   adminTab: 'settings',
+  adminScreen: 'select', // 'select' | 'dashboard'
   stageFilter: 'all',
   activeGroupId: null,
-  scoringModal: null,   // { pid } | null
+  scoringModal: null,
   adminAuthModal: false,
-  roundInputs: {},      // pid -> number | 'NA' | ''
-  lbSort: 'wins',       // 'played' | 'wins' | 'points'
+  roundInputs: {},
+  lbSort: 'wins',
+  tournamentId: null,
+  tournamentName: '',
   settings: {
     gameSize: 4,
     pointsToWin: 50,
     advancementMethod: 'wins',
     shuffleAfterGame: false,
-    firstStageAssignment: 'manual',   // 'manual' | 'random'
-    laterStageAssignment: 'collection', // 'manual' | 'collection'
-    finalsAssignment: 'auto',           // 'manual' | 'auto'
+    firstStageAssignment: 'manual',
+    laterStageAssignment: 'collection',
+    finalsAssignment: 'auto',
     advancersPerGroup: 1,
   },
-  collections: [],  // {id, name, color}
-  participants: [], // {id, name, collectionId}
-  stages: [],       // {id, number, name, status}  status: active|complete
-  groups: [],       // {id, stageId, name, participantIds}
-  games: [],        // {id, groupId, stageId, rounds:[{pid:score|'NA'}], completed, winnerId}
+  collections: [],
+  participants: [],
+  stages: [],
+  groups: [],
+  games: [],
 };
+
+function loadTournamentIndex() {
+  try { return JSON.parse(localStorage.getItem('nertz2-index') || '[]'); } catch(e) { return []; }
+}
+function saveTournamentIndex(list) {
+  localStorage.setItem('nertz2-index', JSON.stringify(list));
+}
 
 function loadState() {
   try {
+    const activeId = localStorage.getItem('nertz2-active');
+    if (activeId) {
+      const data = localStorage.getItem('nertz2-t-' + activeId);
+      if (data) {
+        const p = JSON.parse(data);
+        return { ...DEF, ...p, settings: { ...DEF.settings, ...(p.settings||{}) },
+          scoringModal: null, roundInputs: {}, adminAuthModal: false, adminScreen: 'select' };
+      }
+    }
+    // Migrate legacy single-tournament data
     const s = localStorage.getItem('nertz2');
     if (s) {
       const p = JSON.parse(s);
-      return { ...DEF, ...p, settings: { ...DEF.settings, ...(p.settings||{}) },
-        scoringModal: null, roundInputs: {} };
+      const id = Math.random().toString(36).slice(2,9);
+      const name = p.tournamentName || "Vanessa's 40th";
+      const state = { ...DEF, ...p, settings: { ...DEF.settings, ...(p.settings||{}) },
+        scoringModal: null, roundInputs: {}, adminAuthModal: false, adminScreen: 'select',
+        tournamentId: id, tournamentName: name };
+      localStorage.setItem('nertz2-t-' + id, JSON.stringify(state));
+      localStorage.setItem('nertz2-active', id);
+      saveTournamentIndex([{ id, name, createdAt: Date.now() }]);
+      localStorage.removeItem('nertz2');
+      return state;
     }
   } catch(e) {}
-  return { ...DEF, settings: { ...DEF.settings } };
+  return { ...DEF, settings: { ...DEF.settings }, tournamentId: Math.random().toString(36).slice(2,9), tournamentName: '' };
 }
 
 let S = loadState();
 
-function save() { localStorage.setItem('nertz2', JSON.stringify(S)); }
+function save() {
+  if (!S.tournamentId) S.tournamentId = Math.random().toString(36).slice(2,9);
+  localStorage.setItem('nertz2-t-' + S.tournamentId, JSON.stringify(S));
+  localStorage.setItem('nertz2-active', S.tournamentId);
+  const index = loadTournamentIndex();
+  const existing = index.find(t => t.id === S.tournamentId);
+  if (existing) { existing.name = S.tournamentName || 'Unnamed Tournament'; }
+  else { index.push({ id: S.tournamentId, name: S.tournamentName || 'Unnamed Tournament', createdAt: Date.now() }); }
+  saveTournamentIndex(index);
+}
 function upd(patch) { Object.assign(S, patch); save(); render(); }
 function uid() { return Math.random().toString(36).slice(2,9); }
 
@@ -509,7 +546,7 @@ function buildHome() {
       <div class="home-hero-title">Nertz Together</div>
       <div class="home-hero-suits">♥ ♦ ♠ ♣</div>
       <div class="home-hero-eyebrow">Stay Together</div>
-      <div class="home-party-label">Vanessa's 40th</div>
+      <div class="home-party-label">${escH(S.tournamentName || "Vanessa's 40th")}</div>
       <div class="home-stat-pill">${statText}</div>
     </div>
     <div class="home-card" data-a="setScreen" data-v="brackets">
@@ -898,12 +935,26 @@ function buildScoreModal() {
 // ADMIN
 // =========================================================
 function buildAdmin() {
+  if (S.adminScreen === 'select') {
+    return `
+      <div class="hdr"><div class="hdr-inner">
+        <div class="hdr-logo">♥ Admin</div>
+        <div class="mode-pill">
+          <button class="mode-btn" data-a="setMode" data-v="player">Players</button>
+          <button class="mode-btn active">Admin</button>
+        </div>
+      </div></div>
+      <div class="main no-nav">${buildAdminTournamentSelect()}</div>
+      ${S.adminAuthModal ? buildAdminAuthModal() : ''}`;
+  }
+
   const tabs = [
     ['settings','Settings'],['players','Players'],['stages','Stages'],['standings','Standings']
   ];
   return `
     <div class="hdr"><div class="hdr-inner">
-      <div class="hdr-logo">♥ Admin</div>
+      <button class="hdr-back" data-a="backToTournamentSelect" title="All tournaments">‹</button>
+      <div class="hdr-title">${escH(S.tournamentName || 'Tournament')}</div>
       <div class="mode-pill">
         <button class="mode-btn" data-a="setMode" data-v="player">Players</button>
         <button class="mode-btn active">Admin</button>
@@ -921,9 +972,41 @@ function buildAdmin() {
     ${S.adminAuthModal ? buildAdminAuthModal() : ''}`;
 }
 
+function buildAdminTournamentSelect() {
+  const index = loadTournamentIndex().sort((a,b) => b.createdAt - a.createdAt);
+  return `<div class="section" style="gap:16px">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🎉 New Tournament</div>
+      </div>
+      <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border)">
+        <input type="text" class="input input-sm" id="new-tourney-name" placeholder="e.g. Vanessa's 40th · Round 2">
+        <button class="btn btn-primary btn-sm" data-a="createTournament">Start Tournament</button>
+      </div>
+    </div>
+    ${index.length ? `
+    <div class="section-title" style="padding:0">Continue Existing</div>
+    <div class="card">
+      ${index.map(t => `
+        <div class="list-row" style="cursor:pointer" data-a="selectTournament" data-id="${escH(t.id)}">
+          <div style="flex:1">
+            <div style="font-size:15px;font-weight:600">${escH(t.name || 'Unnamed Tournament')}</div>
+            <div style="font-size:12px;color:var(--muted)">${new Date(t.createdAt).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</div>
+          </div>
+          <div style="color:var(--border);font-size:20px">›</div>
+        </div>`).join('')}
+    </div>` : ''}
+  </div>`;
+}
+
 function buildAdminSettings() {
   const s = S.settings;
   return `<div class="section">
+    <div class="field">
+      <div class="label">Tournament Name</div>
+      <input type="text" class="input" value="${escH(S.tournamentName||'')}" data-a="setTournamentName" placeholder="Tournament name">
+    </div>
+    <div class="divider"></div>
     <div class="field">
       <div class="label">Players per Group</div>
       <div class="seg">${[2,3,4,5].map(n=>`<button class="seg-btn ${s.gameSize===n?'active':''}" data-a="setSetting" data-k="gameSize" data-v="${n}">${n}</button>`).join('')}</div>
@@ -1122,7 +1205,7 @@ function buildAdminStages() {
               ${group.participantIds.map(pid=>{
                 const p=getPart(pid);
                 const col=p?.collectionId?getCol(p.collectionId):null;
-                return `<div class="chip">${col?`<span class="chip-dot" style="background:${col.color}"></span>`:''}${escH(p?.name||'?')}${isManual?`<button class="btn-icon" data-a="removeFromGroup" data-gid="${group.id}" data-pid="${pid}" style="font-size:12px;padding:0 2px">×</button>`:''}</div>`;
+                return `<div class="chip">${col?`<span class="chip-dot" style="background:${col.color}"></span>`:''|}${escH(p?.name||'?')}${isManual?`<button class="btn-icon" data-a="removeFromGroup" data-gid="${group.id}" data-pid="${pid}" style="font-size:12px;padding:0 2px">×</button>`:''}</div>`;
               }).join('')}
             </div>
             ${isManual&&ua.length>0?`<div style="margin-top:8px;display:flex;gap:6px">
@@ -1239,10 +1322,14 @@ function onClick(e) {
   else if (a==='resetAll') { if(confirm('Reset entire tournament?')) { localStorage.removeItem('nertz2'); S=loadState(); render(); } }
   else if (a==='submitAdminAuth') doSubmitAdminAuth();
   else if (a==='closeAdminAuth') upd({adminAuthModal:false});
+  else if (a==='createTournament') doCreateTournament();
+  else if (a==='selectTournament') doSelectTournament(id);
+  else if (a==='backToTournamentSelect') upd({adminScreen:'select'});
 }
 
 function onChange(e) {
   const el=e.target, a=el.dataset.a;
+  if (a==='setTournamentName') { S.tournamentName=el.value; save(); }
   if (a==='setSettingNum') { S.settings={...S.settings,[el.dataset.k]:parseInt(el.value)||1}; save(); }
   if (a==='setPlayerCol') {
     const p=S.participants.find(p=>p.id===el.dataset.id);
@@ -1256,6 +1343,7 @@ function onKey(e) {
     if (e.target.id==='part-name') { e.preventDefault(); doAddPlayer(); }
     if (e.target.id==='score-inp') { e.preventDefault(); doSaveScore(S.scoringModal?.pid); }
     if (e.target.id==='admin-pw-inp') { e.preventDefault(); doSubmitAdminAuth(); }
+    if (e.target.id==='new-tourney-name') { e.preventDefault(); doCreateTournament(); }
   }
 }
 
@@ -1482,11 +1570,35 @@ function doEndGame(gameid) {
   doCompleteGame(gameid);
 }
 
+function doCreateTournament() {
+  const inp = document.getElementById('new-tourney-name');
+  const name = inp?.value.trim();
+  if (!name) { if(inp){inp.focus();inp.style.borderColor='var(--red)';} return; }
+  save(); // save current tournament before switching
+  const id = uid();
+  S = { ...DEF, settings: { ...DEF.settings }, tournamentId: id, tournamentName: name, adminScreen: 'dashboard', adminAuthModal: false, mode: 'admin' };
+  save();
+  render();
+}
+
+function doSelectTournament(id) {
+  save(); // save current before switching
+  try {
+    const data = localStorage.getItem('nertz2-t-' + id);
+    if (!data) { alert('Tournament not found.'); return; }
+    const p = JSON.parse(data);
+    S = { ...DEF, ...p, settings: { ...DEF.settings, ...(p.settings||{}) },
+      scoringModal: null, roundInputs: {}, adminAuthModal: false, adminScreen: 'dashboard', mode: 'admin' };
+    localStorage.setItem('nertz2-active', id);
+    render();
+  } catch(e) { alert('Failed to load tournament.'); }
+}
+
 function doSubmitAdminAuth() {
   const inp = document.getElementById('admin-pw-inp');
   const val = inp ? inp.value : '';
   if (val === '40') {
-    upd({adminAuthModal: false, mode: 'admin', screen: 'home'});
+    upd({adminAuthModal: false, mode: 'admin', screen: 'home', adminScreen: 'select'});
   } else {
     inp.value = '';
     inp.placeholder = 'Wrong password — try again';
