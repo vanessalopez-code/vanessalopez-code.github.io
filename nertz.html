@@ -312,6 +312,7 @@ const DEF = {
   screen: 'picker',
   adminTab: 'settings',
   stageFilter: 'all',
+  playerStageFilter: null,
   activeGroupId: null,
   scoringModal: null,
   adminAuthModal: false,
@@ -348,7 +349,7 @@ let cropState = null;
 let photoCache = {};
 let openStageSettingsPanels = new Set();
 
-const UI_FIELDS = new Set(['mode','screen','adminTab','stageFilter','activeGroupId','scoringModal','adminAuthModal','pickerCreating','roundInputs','lbSort']);
+const UI_FIELDS = new Set(['mode','screen','adminTab','stageFilter','playerStageFilter','activeGroupId','scoringModal','adminAuthModal','pickerCreating','roundInputs','lbSort']);
 
 function save() {
   if (!S.tournamentId) return;
@@ -412,6 +413,12 @@ function uid() { return Math.random().toString(36).slice(2,9); }
 function initials(name) {
   if (!name) return '?';
   return name.trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,2);
+}
+function shortName(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  return parts[0] + ' ' + parts[parts.length - 1][0].toUpperCase() + '.';
 }
 function escH(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -755,21 +762,11 @@ function buildApp() {
 function buildPlayer() {
   const screens = {
     home: buildHome,
-    brackets: buildBrackets,
-    leaderboard: buildLeaderboard,
-    scores: buildScoresList,
-    scorecard: buildScorecard,
+    groups: buildGroups,
+    ranking: buildRanking,
   };
-  const needBack = ['scorecard'].includes(S.screen);
-  const noNav = S.screen === 'scorecard';
 
-  const group = S.activeGroupId ? getGroup(S.activeGroupId) : null;
-  const title = S.screen === 'scorecard' ? (group?.name || 'Scorecard') :
-                S.screen === 'scores' ? 'Enter Scores' :
-                S.screen === 'brackets' ? 'Brackets' :
-                S.screen === 'leaderboard' ? 'Leaderboard' : '';
-
-  const hdr = S.screen === 'home' ? `
+  const hdr = `
     <div class="hdr"><div class="hdr-inner">
       <button class="hdr-back" data-a="backToTournamentSelect" title="All tournaments">‹</button>
       <div class="hdr-title">${escH(S.tournamentName || 'Tournament')}</div>
@@ -777,31 +774,21 @@ function buildPlayer() {
         <button class="mode-btn active">Players</button>
         <button class="mode-btn" data-a="setMode" data-v="admin">Admin</button>
       </div>
-    </div></div>` : `
-    <div class="hdr"><div class="hdr-inner">
-      ${needBack ? `<button class="hdr-back" data-a="back">‹</button>` : `<button class="hdr-back" data-a="backToTournamentSelect" title="All tournaments">‹</button>`}
-      <div class="hdr-title">${escH(needBack ? title : (S.tournamentName || title))}</div>
-      <div class="mode-pill">
-        <button class="mode-btn active">Players</button>
-        <button class="mode-btn" data-a="setMode" data-v="admin">Admin</button>
-      </div>
     </div></div>`;
 
   const fn = screens[S.screen] || buildHome;
-  const mainClass = noNav ? 'main no-nav' : 'main';
 
-  const bnav = noNav ? '' : `
+  const bnav = `
     <nav class="bnav">
       ${bnavItem('home','🏠','Home')}
-      ${bnavItem('brackets','🏆','Brackets')}
-      ${bnavItem('leaderboard','📊','Board')}
-      ${bnavItem('scores','✏️','Scores')}
+      ${bnavItem('groups','🃏','Groups')}
+      ${bnavItem('ranking','📊','Ranking')}
     </nav>`;
 
   const modal = S.scoringModal ? buildScoreModal() : '';
   const authModal = S.adminAuthModal ? buildAdminAuthModal() : '';
 
-  return `${hdr}<div class="${mainClass}">${fn()}</div>${bnav}${modal}${authModal}`;
+  return `${hdr}<div class="main">${fn()}</div>${bnav}${modal}${authModal}`;
 }
 
 function bnavItem(screen, icon, label) {
@@ -823,31 +810,171 @@ function buildHome() {
       <div class="home-party-label">${escH(S.tournamentName || "Vanessa's 40th")}</div>
       <div class="home-stat-pill">${statText}</div>
     </div>
-    <div class="home-card" data-a="setScreen" data-v="brackets">
+    <div class="home-card" data-a="setScreen" data-v="groups">
       <div class="home-card-icon">♠</div>
       <div class="home-card-body">
-        <h2>Brackets</h2>
-        <p>View groups and stage advancement</p>
+        <h2>Groups</h2>
+        <p>View groups and enter scores round by round</p>
       </div>
       <div class="home-card-arrow">›</div>
     </div>
-    <div class="home-card" data-a="setScreen" data-v="leaderboard">
+    <div class="home-card" data-a="setScreen" data-v="ranking">
       <div class="home-card-icon">♦</div>
       <div class="home-card-body">
-        <h2>Leaderboard</h2>
-        <p>Games, wins &amp; points — sortable</p>
-      </div>
-      <div class="home-card-arrow">›</div>
-    </div>
-    <div class="home-card" data-a="setScreen" data-v="scores">
-      <div class="home-card-icon">♣</div>
-      <div class="home-card-body">
-        <h2>Enter Scores</h2>
-        <p>Score active groups round by round</p>
+        <h2>Ranking</h2>
+        <p>Player standings — wins, points &amp; games played</p>
       </div>
       <div class="home-card-arrow">›</div>
     </div>
   </div>`;
+}
+
+function buildGroups() {
+  if (!S.stages.length) return `<div class="empty"><div class="empty-icon">🃏</div><p>No stages set up yet. Ask the admin to configure the tournament.</p></div>`;
+
+  // Default to the most recent stage
+  const mostRecent = S.stages[S.stages.length - 1];
+  const selectedSid = (S.playerStageFilter && S.stages.find(s => s.id === S.playerStageFilter))
+    ? S.playerStageFilter : mostRecent.id;
+  const selectedStage = getStage(selectedSid);
+  const ss = getStageSettings(selectedSid);
+  const target = ss.pointsToWin;
+
+  let html = `<div class="stage-filter">
+    ${S.stages.map(st => `<button class="sf-btn ${selectedSid===st.id?'active':''}" data-a="setPlayerSFilter" data-v="${st.id}">${escH(st.name)}</button>`).join('')}
+  </div>`;
+
+  const stageGroups = activeGroupsForStage(selectedSid);
+  if (!stageGroups.length) {
+    html += `<div class="empty"><div class="empty-icon">🃏</div><p>No groups in this stage yet.</p></div>`;
+    return html;
+  }
+
+  html += `<div style="display:flex;flex-direction:column;gap:14px;padding:0 16px 16px;">`;
+
+  stageGroups.forEach(group => {
+    const activeGame = activeGameForGroup(group.id);
+    const doneGames = completedGamesForGroup(group.id);
+    const game = activeGame || doneGames.slice(-1)[0] || null;
+    const cum = game ? cumulative(game) : {};
+    const gameOver = activeGame ? gameIsOver(activeGame) : false;
+    const showCurrentRound = !!activeGame && !gameOver;
+    const status = groupStatus(group.id, selectedSid);
+
+    const statusBadge = status === 'pending'
+      ? `<span class="badge badge-muted">Not Started</span>`
+      : status === 'final'
+      ? `<span class="badge badge-green">✓ Done</span>`
+      : `<span class="badge badge-blue">● Active</span>`;
+
+    const numRounds = game ? game.rounds.length : 0;
+    const currentRoundNum = game ? game.rounds.length + 1 : 1;
+
+    html += `<div class="card" style="padding:0;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;border-bottom:1px solid var(--border)">
+        <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700">${escH(group.name)}</div>
+        ${statusBadge}
+      </div>`;
+
+    if (!game && status === 'pending') {
+      html += `<div style="padding:12px 14px">
+        <button class="btn btn-primary btn-sm" data-a="startGroupGame" data-gid="${group.id}">▶ Start Game</button>
+      </div>`;
+    } else if (game) {
+      // Score table
+      html += `<div class="sc-table-wrap"><table class="sc-table" style="width:100%;table-layout:fixed">
+        <colgroup>
+          <col style="width:auto">
+          ${Array.from({length: numRounds}, () => '<col style="width:40px">').join('')}
+          ${showCurrentRound ? '<col style="width:52px">' : ''}
+          <col style="width:46px">
+        </colgroup>
+        <thead><tr>
+          <th style="text-align:left;padding:5px 14px;font-size:11px">Player</th>
+          ${Array.from({length: numRounds}, (_,i) => `<th style="font-size:11px">R${i+1}</th>`).join('')}
+          ${showCurrentRound ? `<th style="font-size:11px;color:var(--accent)">R${currentRoundNum}</th>` : ''}
+          <th style="font-size:11px">Total</th>
+        </tr></thead>
+        <tbody>`;
+
+      group.participantIds.forEach(pid => {
+        const p = getPart(pid);
+        const sc = cum[pid] || [];
+        const total = sc.length ? sc[sc.length-1] : 0;
+        const isWinner = game.completed && game.winnerId === pid;
+
+        html += `<tr>
+          <td style="padding:5px 14px;font-size:13px;${isWinner?'font-weight:700;color:var(--gold)':''}">${escH(shortName(p?.name||'?'))}${isWinner?' 🏆':''}</td>`;
+
+        // Past rounds
+        (game.rounds||[]).forEach((round, ri) => {
+          const v = round[pid];
+          if (v === 'NA') {
+            html += `<td style="text-align:center;font-size:11px;color:var(--muted)">—</td>`;
+          } else {
+            const n = Number(v) || 0;
+            const rt = (sc)[ri] !== undefined ? sc[ri] : 0;
+            html += `<td style="text-align:center;font-size:11px" title="Running: ${rt}"><span class="${n>=0?'pos':'neg'}">${n>=0?'+':''}${n}</span></td>`;
+          }
+        });
+
+        // Current round input cell
+        if (showCurrentRound) {
+          const inp = S.roundInputs[pid];
+          const hasVal = inp !== undefined && inp !== '';
+          const isNA = inp === 'NA';
+          html += `<td style="text-align:center;padding:3px 2px">
+            <button class="btn btn-xs ${hasVal?'btn-ghost':'btn-primary'}"
+              data-a="enterGroupScore" data-gid="${group.id}" data-pid="${pid}"
+              style="min-width:34px;padding:3px 4px;font-size:11px">
+              ${isNA ? '—' : hasVal ? `${Number(inp)>=0?'+':''}${inp}` : '+'}
+            </button>
+          </td>`;
+        }
+
+        // Total
+        html += `<td style="text-align:center;font-weight:700;font-size:12px" class="${total>=0?'pos':'neg'}">${total}</td>`;
+        html += `</tr>`;
+      });
+
+      html += `</tbody></table></div>`;
+
+      // Game actions
+      if (showCurrentRound) {
+        const allHaveInput = group.participantIds.every(pid => {
+          const inp = S.roundInputs[pid];
+          return inp !== undefined && inp !== '';
+        });
+        if (allHaveInput) {
+          html += `<div style="padding:8px 14px 12px">
+            <button class="btn btn-primary btn-full" data-a="submitRound" data-gid="${activeGame.id}">
+              Submit Round ${currentRoundNum}
+            </button>
+          </div>`;
+        }
+      } else if (gameOver) {
+        const wid = gameWinnerId(activeGame);
+        const wp = getPart(wid);
+        html += `<div style="padding:8px 14px 12px;display:flex;flex-direction:column;gap:8px">
+          <div class="sc-winner-banner">🏆 ${escH(wp?.name||'?')} wins this game!</div>
+          <button class="btn btn-gold btn-full" data-a="completeGame" data-gid="${activeGame.id}">Save &amp; Complete Game</button>
+        </div>`;
+      } else if (!activeGame && status !== 'final') {
+        html += `<div style="padding:8px 14px 12px">
+          <button class="btn btn-primary btn-sm" data-a="startGroupGame" data-gid="${group.id}">▶ Start Next Game</button>
+        </div>`;
+      }
+    }
+
+    html += `</div>`;
+  });
+
+  html += `</div>`;
+  return html;
+}
+
+function buildRanking() {
+  return buildLeaderboard();
 }
 
 function buildBrackets() {
@@ -1698,10 +1825,11 @@ function onClick(e) {
   else if (a==='setMode') upd({mode:v, screen:'home'});
   else if (a==='openAdminAuth') upd({adminAuthModal:true});
   else if (a==='setScreen') upd({screen:v});
-  else if (a==='back') upd({screen:'scores', scoringModal:null, roundInputs:{}});
+  else if (a==='back') upd({screen:'groups', scoringModal:null, roundInputs:{}});
   else if (a==='setAdminTab') { pendingSettings=null; upd({adminTab:v}); }
   else if (a==='setLbSort') upd({lbSort:v});
   else if (a==='setSFilter') upd({stageFilter:v});
+  else if (a==='setPlayerSFilter') upd({playerStageFilter:v});
   else if (a==='setSetting') {
     let val=v;
     if(v==='true') val=true; else if(v==='false') val=false; else if(!isNaN(+v)) val=+v;
@@ -1754,6 +1882,8 @@ function onClick(e) {
   else if (a==='removeFromGroup') doRemoveFromGroup(gid,pid);
   else if (a==='openScorecard') upd({activeGroupId:gid, screen:'scorecard', roundInputs:{}});
   else if (a==='startGame') doStartGame(gid);
+  else if (a==='startGroupGame') { S.activeGroupId = gid; doStartGame(gid); }
+  else if (a==='enterGroupScore') { S.activeGroupId = gid; doOpenScoreModal(pid); }
   else if (a==='openScoreModal') doOpenScoreModal(pid);
   else if (a==='closeModal') { if (!e.target.closest('.sheet')) upd({scoringModal:null}); }
   else if (a==='toggleNA') doToggleNA(pid);
