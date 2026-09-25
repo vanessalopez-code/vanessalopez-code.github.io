@@ -1469,8 +1469,10 @@ function buildAdminSettings() {
     </div>
 
     <div class="divider"></div>
-    <div class="section-title">Stage Settings</div>
-    <div style="font-size:12px;color:var(--muted);margin-top:-8px;margin-bottom:4px">Configure each stage independently. Changes save immediately.</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div class="section-title" style="margin:0">Stage Settings</div>
+      <span style="font-size:11px;color:var(--green);font-weight:600">✓ Auto-saves</span>
+    </div>
 
     ${totalStages === 0
       ? `<div style="padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--muted);text-align:center">Set the number of stages above to get started.</div>`
