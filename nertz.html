@@ -549,6 +549,24 @@ function stageCurrentRound(stageId) {
   return Math.max(...groups.map(g => g.round || 1));
 }
 
+// Status of a single group: 'pending' | 'active' | 'final'
+function groupStatus(groupId, stageId) {
+  const active = activeGameForGroup(groupId);
+  if (active) return 'active';
+  const done = completedGamesForGroup(groupId);
+  if (!done.length) return 'pending';
+  const ss = getStageSettings(stageId);
+  const gps = ss.gamesPerStage || 1;
+  return done.length >= gps ? 'final' : 'active';
+}
+
+// True when every active group in the stage has completed all required games.
+function stageIsFullyDone(stageId) {
+  const groups = activeGroupsForStage(stageId);
+  if (!groups.length) return false;
+  return groups.every(g => groupStatus(g.id, stageId) === 'final');
+}
+
 // Returns how many complete game cycles have finished in a stage.
 // Shuffle mode: counts completed reshuffle rounds.
 // Keep Group mode: counts completed games at each (fixed) group.
@@ -1342,6 +1360,20 @@ function buildAdminSettings() {
     <div class="divider"></div>
     <button class="btn btn-primary btn-full" data-a="saveSettings">Save Settings</button>
     <button class="btn btn-danger btn-full btn-sm" data-a="resetAll">⚠ Reset Tournament</button>
+    ${S.stages.length > 0 ? `
+    <div class="divider"></div>
+    <div class="section-title">Per-Stage Settings</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:-8px">Override defaults above for individual stages. Changes save immediately.</div>
+    ${S.stages.map(stage => {
+      const ssOpen = openStageSettingsPanels.has(stage.id);
+      return `<div class="card">
+        <div class="card-header" style="padding:12px 14px">
+          <div class="card-title" style="font-size:14px">${escH(stage.name)}</div>
+          <button class="btn btn-ghost btn-xs" data-a="toggleStageSettings" data-sid="${stage.id}">${ssOpen ? '▲ Hide' : '▼ Configure'}</button>
+        </div>
+        ${ssOpen ? `<div style="padding:12px 16px;border-top:1px solid var(--border)">${buildStageSettingsPanel(stage)}</div>` : ''}
+      </div>`;
+    }).join('')}` : ''}
   </div>`;
 }
 
@@ -1446,6 +1478,12 @@ function stageAssignmentMode(stageId) {
   return S.settings.laterStageAssignment;
 }
 
+function groupStatusBadge(status) {
+  if (status === 'active') return `<span class="badge badge-blue">● Active</span>`;
+  if (status === 'final')  return `<span class="badge badge-green">✓ Final</span>`;
+  return `<span class="badge badge-muted">Not Started</span>`;
+}
+
 function buildStageSettingsPanel(stage) {
   const ss = getStageSettings(stage.id);
   const sid = stage.id;
@@ -1504,91 +1542,100 @@ function buildStageSettingsPanel(stage) {
 }
 
 function buildAdminStages() {
-  const lastIdx = S.stages.length - 1;
+  const totalStages = S.stages.length;
+  const lastStage = totalStages > 0 ? S.stages[totalStages - 1] : null;
+  const canAdd = !lastStage || stageIsFullyDone(lastStage.id);
+
   return `<div class="section" style="gap:12px">
-    <div class="btn-row" style="flex-wrap:wrap">
-      <button class="btn btn-primary btn-sm" data-a="addStage">+ Add Stage</button>
+    <div>
+      <button class="btn btn-primary btn-sm" data-a="addStage" ${canAdd?'':'disabled style="opacity:0.45;cursor:not-allowed"'}>+ Add Stage</button>
+      ${!canAdd ? `<div style="font-size:12px;color:var(--muted);margin-top:6px">Complete all games in ${escH(lastStage.name)} to unlock the next stage.</div>` : ''}
     </div>
 
-    ${S.stages.length===0?`<div class="empty"><div class="empty-icon">🏆</div><p>Add a stage to create tournament groups.</p></div>`:''}
+    ${totalStages===0?`<div class="empty"><div class="empty-icon">🏆</div><p>Add a stage to get started. Configure per-stage settings in the Settings tab.</p></div>`:''}
 
     ${S.stages.map((stage, stageIdx) => {
       const ss = getStageSettings(stage.id);
       const stageGroups = activeGroupsForStage(stage.id);
       const ua = unassigned(stage.id);
       const mode = stageAssignmentMode(stage.id);
-      const gpsA = ss.gamesPerStage || 1;
-      const roundsDoneA = stageRoundsComplete(stage.id);
-      const stageFullyDone = gpsA > 1 && roundsDoneA >= gpsA;
       const isManual = mode === 'manual';
       const isFirstStage = stageIdx === 0;
-      const isFinals = ss.isFinal || (stageIdx === lastIdx && lastIdx > 0);
+      const isFinals = ss.isFinal || (stageIdx === totalStages - 1 && totalStages > 1);
       const isLaterStage = !isFirstStage && !isFinals;
-      const settingsOpen = openStageSettingsPanels.has(stage.id);
+      const stageDone = stageIsFullyDone(stage.id);
       const stageHasGames = S.games.some(game => {
         const g = getGroup(game.groupId);
         return g && g.stageId === stage.id;
       });
+      const gpsA = ss.gamesPerStage || 1;
 
-      const assignBtn = stage.status==='active' ? (
-        isFirstStage && mode==='random' ? (stageHasGames
-          ? `<button class="btn btn-ghost btn-xs" disabled title="Scores have been entered — cannot re-randomize" style="opacity:0.45;cursor:not-allowed">🔀 Randomize</button>`
+      // Stage-level status
+      const stageBadge = stage.status === 'complete'
+        ? `<span class="badge badge-green">Complete</span>`
+        : stageDone
+          ? `<span class="badge badge-gold">All Done</span>`
+          : stageHasGames
+            ? `<span class="badge badge-blue">In Progress</span>`
+            : `<span class="badge badge-muted">Not Started</span>`;
+
+      const assignBtn = stage.status !== 'complete' ? (
+        isFirstStage && mode === 'random' ? (stageHasGames
+          ? `<button class="btn btn-ghost btn-xs" disabled title="Scores entered — cannot re-randomize" style="opacity:0.45;cursor:not-allowed">🔀 Randomize</button>`
           : `<button class="btn btn-ghost btn-xs" data-a="randomizeStage" data-sid="${stage.id}">🔀 Randomize</button>`) :
-        isLaterStage && mode==='collection' ? `<button class="btn btn-ghost btn-xs" data-a="autoAssignFromPrev" data-sid="${stage.id}">↑ Auto-assign</button>` :
-        isFinals && mode==='auto' ? `<button class="btn btn-ghost btn-xs" data-a="generateFinals" data-sid="${stage.id}">🏆 Generate Finals</button>` : ''
+        isLaterStage && mode === 'collection' ? `<button class="btn btn-ghost btn-xs" data-a="autoAssignFromPrev" data-sid="${stage.id}">↑ Auto-assign</button>` :
+        isFinals && mode === 'auto' ? `<button class="btn btn-ghost btn-xs" data-a="generateFinals" data-sid="${stage.id}">🏆 Generate Finals</button>` : ''
       ) : '';
 
       return `<div class="card">
         <div class="card-header">
           <div style="flex:1">
-            <div class="card-title">${escH(stage.name)}${isFinals?` <span style="font-size:11px;color:var(--gold);font-weight:600">★ Final</span>`:''}</div>
-            ${gpsA > 1 ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${stageFullyDone?'✓ All games played — ready to advance':`Game ${roundsDoneA + 1} of ${gpsA}`}</div>` : ''}
+            <div class="card-title">${escH(stage.name)}${isFinals?` <span style="font-size:11px;color:var(--gold)">★ Final</span>`:''}</div>
+            ${gpsA > 1 ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${gpsA} games required per group</div>` : ''}
           </div>
           <div class="btn-row">
-            ${stage.status==='active'?`<button class="btn btn-ghost btn-xs" data-a="addGroup" data-sid="${stage.id}">+ Group</button>`:''}
+            ${stage.status !== 'complete' ? `<button class="btn btn-ghost btn-xs" data-a="addGroup" data-sid="${stage.id}">+ Group</button>` : ''}
             ${assignBtn}
-            <span class="badge ${stage.status==='complete'?'badge-green':'badge-blue'}">${stage.status==='complete'?'Complete':'Active'}</span>
+            ${stageBadge}
           </div>
         </div>
 
-        <div style="border-top:1px solid var(--border);padding:8px 14px">
-          <button class="btn btn-ghost btn-xs" style="font-size:11px" data-a="toggleStageSettings" data-sid="${stage.id}">⚙ Stage Settings ${settingsOpen?'▲':'▼'}</button>
-          ${settingsOpen ? buildStageSettingsPanel(stage) : ''}
-        </div>
+        ${stageGroups.length === 0 ? `<div style="padding:12px 14px;font-size:13px;color:var(--muted)">${isManual?'Add groups and assign players manually.':isFinals?'Use Generate Finals to auto-create the finals group.':isFirstStage?'Use Randomize to auto-assign all players into groups.':'Use Auto-assign to pull advancers from the previous stage.'}</div>` : ''}
 
         ${stageGroups.map(group => {
+          const gStatus = groupStatus(group.id, stage.id);
           const active = activeGameForGroup(group.id);
           const done = completedGamesForGroup(group.id);
           return `<div style="border-top:1px solid var(--border);padding:12px 14px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:${group.participantIds.length?'8':'0'}px">
               <div style="font-size:14px;font-weight:700;flex:1">${escH(group.name)}</div>
-              ${active?'<span class="badge badge-blue">Active</span>':''}
-              ${done.length?`<span class="badge badge-muted">${done.length} done</span>`:''}
+              ${groupStatusBadge(gStatus)}
+              ${done.length ? `<span style="font-size:11px;color:var(--muted)">${done.length}/${gpsA} game${gpsA!==1?'s':''}</span>` : ''}
               <button class="btn-icon red" data-a="deleteGroup" data-id="${group.id}">×</button>
             </div>
-            <div class="chips">
-              ${group.participantIds.map(pid=>{
-                const p=getPart(pid);
-                const col=p?.collectionId?getCol(p.collectionId):null;
-                return `<div class="chip">${col?`<span class="chip-dot" style="background:${col.color}"></span>`:''}${escH(p?.name||'?')}${isManual?`<button class="btn-icon" data-a="removeFromGroup" data-gid="${group.id}" data-pid="${pid}" style="font-size:12px;padding:0 2px">×</button>`:''}</div>`;
+            ${group.participantIds.length ? `<div class="chips">
+              ${group.participantIds.map(pid => {
+                const p = getPart(pid);
+                const col = p?.collectionId ? getCol(p.collectionId) : null;
+                return `<div class="chip">${col?`<span class="chip-dot" style="background:${col.color}"></span>`:''}${escH(p?.name||'?')}${isManual&&gStatus==='pending'?`<button class="btn-icon" data-a="removeFromGroup" data-gid="${group.id}" data-pid="${pid}" style="font-size:12px;padding:0 2px">×</button>`:''}</div>`;
               }).join('')}
-            </div>
-            ${isManual&&ua.length>0?`<div style="margin-top:8px;display:flex;gap:6px">
+            </div>` : ''}
+            ${isManual && ua.length > 0 && gStatus === 'pending' ? `<div style="margin-top:8px;display:flex;gap:6px">
               <select class="input input-sm" id="atg-${group.id}" style="flex:1">
                 <option value="">Add player…</option>
                 ${ua.map(p=>`<option value="${p.id}">${escH(p.name)}</option>`).join('')}
               </select>
               <button class="btn btn-ghost btn-sm" data-a="addToGroup" data-gid="${group.id}">Add</button>
-            </div>`:''}
-            ${!active&&done.length?`<div style="margin-top:8px"><button class="btn btn-ghost btn-xs" data-a="reopenGame" data-id="${done[done.length-1].id}">↩ Reopen Last Game</button></div>`:''}
+            </div>` : ''}
+            ${!active && done.length ? `<div style="margin-top:8px"><button class="btn btn-ghost btn-xs" data-a="reopenGame" data-id="${done[done.length-1].id}">↩ Reopen Last Game</button></div>` : ''}
           </div>`;
         }).join('')}
 
-        ${stageGroups.length===0?`<div style="padding:12px 14px;font-size:13px;color:var(--muted)">No groups yet. ${isManual?'Add groups and assign players.':isFinals?'Use Generate Finals to auto-create the finals group.':isFirstStage?'Use Randomize to auto-assign players.':'Use Auto-assign to pull advancers from the previous stage.'}</div>`:''}
-        ${stageFullyDone?`<div style="padding:8px 14px;font-size:12px;color:var(--green);border-top:1px solid var(--border);font-weight:600">All ${gpsA} game${gpsA!==1?'s':''} played. ${isFinals?'Stage complete — declare the winner!':'Mark this stage complete to advance players.'}</div>`:isManual&&ua.length>0&&stageGroups.length>0?`<div style="padding:8px 14px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)">${ua.length} player${ua.length!==1?'s':''} unassigned</div>`:''}
+        ${isManual && ua.length > 0 && stageGroups.length > 0 ? `<div style="padding:8px 14px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)">${ua.length} player${ua.length!==1?'s':''} not yet assigned to a group</div>` : ''}
+        ${stageDone && stage.status !== 'complete' ? `<div style="padding:10px 14px;font-size:13px;color:var(--green);border-top:1px solid var(--border);font-weight:600">✓ All games complete. ${isFinals ? 'Declare the winner!' : 'Ready to advance players to the next stage.'}</div>` : ''}
 
         <div style="border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap">
-          ${stage.status==='active'?`<button class="btn btn-ghost btn-xs" data-a="markStageComplete" data-id="${stage.id}">Mark Complete</button>`:''}
+          ${stage.status === 'active' ? `<button class="btn btn-ghost btn-xs" data-a="markStageComplete" data-id="${stage.id}">Mark Complete</button>` : ''}
           <button class="btn btn-danger btn-xs" data-a="deleteStage" data-id="${stage.id}">Delete Stage</button>
         </div>
       </div>`;
@@ -1791,8 +1838,15 @@ function doDeletePlayer(id) {
   save(); render();
 }
 function doAddStage() {
-  const num=S.stages.length+1;
-  S.stages.push({id:uid(),number:num,name:`Stage ${num}`,status:'active'});
+  if (S.stages.length > 0) {
+    const last = S.stages[S.stages.length - 1];
+    if (!stageIsFullyDone(last.id)) {
+      alert(`Complete all games in ${last.name} before adding the next stage.`);
+      return;
+    }
+  }
+  const num = S.stages.length + 1;
+  S.stages.push({ id: uid(), number: num, name: `Stage ${num}`, status: 'active' });
   save(); render();
 }
 function doDeleteStage(id) {
