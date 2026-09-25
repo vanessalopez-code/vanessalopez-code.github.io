@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Nertz — Vanessa's 40th</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,800;1,700&family=Special+Elite&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #ece4f4;
+      --surface: #f7f2fc;
+      --surface2: #e2d6ef;
+      --border: #c9b5de;
+      --text: #2b1040;
+      --muted: #9880b5;
+      --accent: #c0187e;
+      --gold: #9480c4;
+      --green: #2e7d4f;
+      --red: #8b0058;
+      --sb: env(safe-area-inset-bottom, 0px);
+      --st: env(safe-area-inset-top, 0px);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; overscroll-behavior: none; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 16px; line-height: 1.4; }
+    h1, h2, .hdr-logo, .home-hero h1 { font-family: 'Playfair Display', Georgia, serif; }
+
+    #app { max-width: 480px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; }
+
+    /* HEADER */
+    .hdr { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 16px; padding-top: var(--st); position: sticky; top: 0; z-index: 100; }
+    .hdr-inner { display: flex; align-items: center; height: 52px; gap: 10px; }
+    .hdr-back { width: 40px; height: 40px; border: none; background: none; color: var(--accent); font-size: 22px; cursor: pointer; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .hdr-title { flex: 1; font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hdr-logo { font-size: 15px; font-weight: 800; color: var(--gold); flex: 1; }
+    .mode-pill { display: flex; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; flex-shrink: 0; }
+    .mode-btn { padding: 5px 12px; font-size: 12px; font-weight: 600; border: none; background: none; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+    .mode-btn.active { background: var(--accent); color: #fff; }
+
+    /* MAIN */
+    .main { flex: 1; overflow-y: auto; padding-bottom: calc(64px + var(--sb)); }
+    .main.no-nav { padding-bottom: 0; }
+
+    /* BOTTOM NAV */
+    .bnav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: var(--surface); border-top: 1px solid var(--border); display: flex; padding-bottom: var(--sb); z-index: 100; }
+    .bnav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 0; gap: 3px; font-size: 10px; font-weight: 600; color: var(--muted); cursor: pointer; border: none; background: none; transition: color 0.15s; }
+    .bnav-item.active { color: var(--gold); }
+    .bnav-icon { font-size: 22px; line-height: 1; }
+
+    /* HOME SCREEN */
+    .home { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+    /* Hero — styled like the party playing card */
+    .home-hero-card { background: #fdfaf8; border: 3px solid var(--accent); border-radius: 22px; padding: 28px 20px 24px; position: relative; text-align: center; }
+    .home-hero-card::before { content: ''; position: absolute; inset: 8px; border: 1.5px dashed var(--accent); border-radius: 15px; pointer-events: none; }
+    .home-hero-eyebrow { font-family: 'Special Elite', monospace; font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); line-height: 1.6; }
+    .home-hero-title { font-family: 'Playfair Display', Georgia, serif; font-size: 38px; font-weight: 800; font-style: italic; color: var(--accent); margin: 4px 0; line-height: 1.1; }
+    .home-hero-suits { font-size: 28px; color: var(--accent); letter-spacing: 6px; margin: 8px 0 4px; }
+    .home-party-label { font-family: 'Special Elite', monospace; font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--muted); margin-top: 10px; }
+    .home-stat-pill { display: inline-block; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 4px 14px; font-family: 'Special Elite', monospace; font-size: 11px; letter-spacing: 0.06em; color: var(--muted); margin-top: 8px; }
+
+    /* Option cards */
+    .home-card { background: #fdfaf8; border: 2px solid var(--accent); border-radius: 16px; padding: 18px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: all 0.12s; }
+    .home-card:active { background: var(--surface2); transform: scale(0.98); }
+    .home-card-icon { font-size: 30px; flex-shrink: 0; }
+    .home-card-body { flex: 1; }
+    .home-card-body h2 { font-family: 'Special Elite', monospace; font-size: 16px; letter-spacing: 0.04em; color: var(--accent); }
+    .home-card-body p { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .home-card-arrow { color: var(--accent); font-size: 20px; font-weight: 300; }
+
+    /* SECTION */
+    .section { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+    .section-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+
+    /* CARDS */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; }
+    .card-title { font-size: 15px; font-weight: 700; }
+    .card-body { padding: 0 16px 14px; }
+    .card-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--border); }
+
+    /* CHIPS */
+    .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 10px; font-size: 13px; }
+    .chip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    /* BADGES */
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; border: 1px solid; }
+    .badge-green { color: var(--green); border-color: var(--green); background: rgba(63,185,80,.1); }
+    .badge-gold { color: var(--gold); border-color: var(--gold); background: rgba(148,128,196,.1); }
+    .badge-muted { color: var(--muted); border-color: var(--border); background: var(--surface2); }
+    .badge-blue { color: var(--accent); border-color: var(--accent); background: rgba(192,24,126,.1); }
+
+    /* BUTTONS */
+    .btn { display: flex; align-items: center; justify-content: center; gap: 6px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; padding: 13px 20px; transition: opacity 0.12s; }
+    .btn:active { opacity: 0.75; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-gold { background: var(--gold); color: #fff; }
+    .btn-danger { background: var(--red); color: #fff; }
+    .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-sm { padding: 8px 14px; font-size: 13px; border-radius: 8px; }
+    .btn-xs { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+    .btn-full { width: 100%; }
+    .btn-row { display: flex; gap: 8px; }
+    .btn-icon { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; border-radius: 6px; font-size: 18px; line-height: 1; }
+    .btn-icon:active { color: var(--text); background: var(--surface2); }
+    .btn-icon.red:active { color: var(--red); }
+
+    /* FORMS */
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .input { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; color: var(--text); padding: 13px 14px; font-size: 16px; width: 100%; outline: none; }
+    .input:focus { border-color: var(--accent); }
+    .input-sm { padding: 8px 10px; font-size: 14px; border-radius: 8px; }
+    select.input { cursor: pointer; }
+    input[type="color"] { width: 44px; height: 44px; padding: 4px; border-radius: 8px; cursor: pointer; }
+    .seg { display: flex; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .seg-btn { flex: 1; padding: 10px 8px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.12s; }
+    .seg-btn.active { background: var(--accent); color: #fff; }
+
+    /* LIST ROWS */
+    .list-row { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); }
+    .list-row:first-child { border-top: none; }
+    .list-row-label { flex: 1; font-size: 15px; }
+    .list-row-sub { font-size: 12px; color: var(--muted); }
+
+    /* BRACKET */
+    .stage-block { display: flex; flex-direction: column; gap: 10px; }
+    .stage-label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gold); padding: 0 16px; }
+    .bracket-group { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; margin: 0 16px; overflow: hidden; }
+    .bracket-group-hdr { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    .bracket-group-name { font-size: 14px; font-weight: 700; flex: 1; }
+    .bracket-players { display: flex; flex-direction: column; }
+    .bracket-player { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--border); }
+    .bracket-player:first-child { border-top: none; }
+    .bracket-player.winner { background: rgba(148,128,196,0.06); }
+    .bracket-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; color: var(--muted); }
+    .bracket-avatar.winner-av { background: rgba(148,128,196,0.15); border-color: var(--gold); color: var(--gold); }
+    .bracket-pname { flex: 1; font-size: 14px; }
+    .bracket-pname.winner { font-weight: 700; color: var(--gold); }
+
+    /* LEADERBOARD */
+    .lb-filters { display: flex; gap: 8px; padding: 0 16px; }
+    .lb-filter { padding: 7px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; }
+    .lb-filter.active { border-color: var(--accent); color: var(--accent); background: rgba(192,24,126,.1); }
+    .lb-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border); }
+    .lb-rank { width: 28px; font-size: 14px; font-weight: 800; color: var(--muted); text-align: center; flex-shrink: 0; }
+    .lb-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+    .lb-name { flex: 1; font-size: 15px; font-weight: 600; }
+    .lb-stat { text-align: right; }
+    .lb-stat-val { font-size: 16px; font-weight: 700; }
+    .lb-stat-sub { font-size: 11px; color: var(--muted); }
+
+    /* SCORES - GROUP LIST */
+    .group-list-item { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; transition: background 0.1s; }
+    .group-list-item:active { background: var(--surface2); }
+    .group-list-item + .group-list-item { border-top: 1px solid var(--border); }
+    .group-avatar { width: 44px; height: 44px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .group-info { flex: 1; }
+    .group-info-name { font-size: 15px; font-weight: 700; }
+    .group-info-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* SCORECARD */
+    .sc-players { display: flex; gap: 8px; padding: 16px; overflow-x: auto; }
+    .sc-player-tile { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+    .sc-player-tile:active .sc-avatar { transform: scale(0.94); }
+    .sc-avatar { width: 56px; height: 56px; border-radius: 50%; background: var(--surface2); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; transition: all 0.12s; position: relative; }
+    .sc-avatar.has-score { border-color: var(--green); background: rgba(63,185,80,.1); }
+    .sc-avatar.is-na { border-color: var(--muted); opacity: 0.5; }
+    .sc-avatar.is-winner { border-color: var(--gold); background: rgba(148,128,196,.12); }
+    .sc-avatar-check { position: absolute; bottom: -2px; right: -2px; width: 18px; height: 18px; border-radius: 50%; background: var(--green); color: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; border: 2px solid var(--bg); }
+    .sc-pname { font-size: 11px; color: var(--muted); font-weight: 600; text-align: center; max-width: 60px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sc-pscore { font-size: 13px; font-weight: 700; }
+
+    .sc-round-info { padding: 0 16px 8px; display: flex; align-items: center; justify-content: space-between; }
+    .sc-round-label { font-size: 20px; font-weight: 800; }
+    .sc-target { font-size: 13px; color: var(--muted); }
+
+    .sc-progress { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 6px; }
+    .sc-progress-row { display: flex; align-items: center; gap: 10px; }
+    .sc-progress-name { font-size: 13px; color: var(--muted); width: 80px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sc-progress-bar-wrap { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .sc-progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; }
+    .sc-progress-fill.hit { background: var(--gold); }
+    .sc-progress-pts { font-size: 13px; font-weight: 700; min-width: 36px; text-align: right; }
+
+    .sc-history { border-top: 1px solid var(--border); margin-top: 8px; }
+    .sc-history-title { padding: 10px 16px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .sc-table-wrap { overflow-x: auto; padding: 0 16px 16px; }
+    .sc-table { border-collapse: collapse; font-size: 13px; width: 100%; min-width: 200px; }
+    .sc-table th { padding: 6px 10px; background: var(--surface2); border: 1px solid var(--border); font-weight: 700; text-align: center; font-size: 11px; }
+    .sc-table td { padding: 6px 10px; border: 1px solid var(--border); text-align: center; }
+    .sc-table .round-col { color: var(--muted); font-size: 11px; font-weight: 700; }
+    .sc-table .pos { color: var(--green); }
+    .sc-table .neg { color: var(--red); }
+    .sc-table .na-cell { color: var(--muted); font-style: italic; }
+    .sc-table .total-row td { background: var(--surface2); font-weight: 700; border-top: 2px solid var(--border); }
+    .sc-table .winner-col { background: rgba(148,128,196,.08); }
+
+    .sc-actions { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .sc-winner-banner { background: rgba(148,128,196,.12); border: 1px solid rgba(148,128,196,.3); border-radius: 12px; padding: 14px 16px; text-align: center; font-weight: 700; color: var(--gold); font-size: 16px; }
+
+    /* SCORE MODAL */
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 300; display: flex; align-items: flex-end; }
+    .sheet { background: var(--surface); border-radius: 24px 24px 0 0; padding: 8px 20px calc(20px + var(--sb)); width: 100%; max-height: 90vh; overflow-y: auto; }
+    .sheet-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 10px auto 20px; }
+    .sheet-player { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 20px; }
+    .sheet-avatar { width: 72px; height: 72px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 24px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+    .sheet-name { font-size: 20px; font-weight: 700; }
+    .sheet-total { font-size: 13px; color: var(--muted); }
+    .score-input-xl { font-size: 40px; font-weight: 800; text-align: center; background: var(--surface2); border: 2px solid var(--border); border-radius: 14px; color: var(--text); padding: 18px; width: 100%; outline: none; -moz-appearance: textfield; }
+    .score-input-xl::-webkit-inner-spin-button, .score-input-xl::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .score-input-xl:focus { border-color: var(--accent); }
+    .na-toggle { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: 600; color: var(--muted); margin: 12px 0; }
+    .na-toggle.active { border-color: var(--gold); color: var(--gold); background: rgba(148,128,196,.08); }
+
+    /* ADMIN */
+    .admin-tabs { display: flex; overflow-x: auto; gap: 0; border-bottom: 1px solid var(--border); }
+    .admin-tab { padding: 14px 18px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; font-size: 13px; font-weight: 700; white-space: nowrap; margin-bottom: -1px; }
+    .admin-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* STAGE FILTER */
+    .stage-filter { display: flex; gap: 8px; padding: 12px 16px; overflow-x: auto; }
+    .sf-btn { padding: 6px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; }
+    .sf-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(148,128,196,.08); }
+
+    /* EMPTY */
+    .empty { text-align: center; padding: 48px 24px; color: var(--muted); }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    .empty p { font-size: 15px; max-width: 240px; margin: 0 auto; line-height: 1.5; }
+
+    /* UTILS */
+    .hidden { display: none !important; }
+    .divider { height: 1px; background: var(--border); margin: 4px 0; }
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+    .text-muted { color: var(--muted); }
+    .text-gold { color: var(--gold); }
+    .fw7 { font-weight: 700; }
+    .mt8 { margin-top: 8px; }
+    .gap8 { gap: 8px; }
+
+    /* ── PARTY AESTHETIC OVERRIDES ── */
+    /* Cream playing-card surfaces */
+    .card, .bracket-group { background: #fdfaf8; border-color: #d8c0e8; }
+    /* Crimson-tinted header */
+    .hdr { background: #fdfaf8; border-bottom: 2px solid var(--accent); }
+    .hdr-logo { font-family: 'Special Elite', monospace; font-size: 16px; color: var(--accent); letter-spacing: 0.06em; }
+    .hdr-title { font-family: 'Special Elite', monospace; letter-spacing: 0.04em; color: var(--accent); }
+    /* Bottom nav */
+    .bnav { background: #fdfaf8; border-top: 2px solid var(--accent); }
+    .bnav-item { font-family: 'Special Elite', monospace; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .bnav-item.active { color: var(--accent); }
+    /* Section + field labels use Special Elite */
+    .section-title, .label, .stage-label { font-family: 'Special Elite', monospace; letter-spacing: 0.1em; }
+    /* Admin tabs */
+    .admin-tab { font-family: 'Special Elite', monospace; letter-spacing: 0.06em; }
+    .admin-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    /* Stage filter + leaderboard filter */
+    .sf-btn, .lb-filter { font-family: 'Special Elite', monospace; letter-spacing: 0.04em; }
+    .sf-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(192,24,126,.06); }
+    /* Mode pill */
+    .mode-btn { font-family: 'Special Elite', monospace; font-size: 11px; letter-spacing: 0.04em; }
+    /* Sheet (score modal) */
+    .sheet { background: #fdfaf8; border-top: 3px solid var(--accent); }
+    .sheet-handle { background: var(--accent); opacity: 0.3; }
+    .sheet-name { font-family: 'Special Elite', monospace; letter-spacing: 0.06em; }
+    /* Buttons — primary stays solid crimson; ghost gets crimson border */
+    .btn-ghost { border-color: var(--accent); color: var(--accent); background: transparent; }
+    .btn-ghost:active { background: rgba(192,24,126,.06); }
+    /* Score input */
+    .score-input-xl { background: var(--bg); border-color: var(--border); }
+    .score-input-xl:focus { border-color: var(--accent); }
+    /* Chips */
+    .chip { background: #fdfaf8; border-color: #d8c0e8; }
+    /* Bracket stage label */
+    .stage-label { color: var(--accent); }
+    /* Winner banner */
+    .sc-winner-banner { border-color: rgba(148,128,196,.4); color: var(--gold); background: rgba(148,128,196,.1); }
+    /* Progress bar */
+    .sc-progress-fill { background: var(--accent); }
+    .sc-progress-fill.hit { background: var(--gold); }
+  </style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// =========================================================
+// STATE
+// =========================================================
+const DEF = {
+  mode: 'player',       // 'player' | 'admin'
+  screen: 'home',       // player screens
+  adminTab: 'settings',
+  stageFilter: 'all',
+  activeGroupId: null,
+  scoringModal: null,   // { pid } | null
+  roundInputs: {},      // pid -> number | 'NA' | ''
+  lbSort: 'wins',       // 'played' | 'wins' | 'points'
+  settings: {
+    gameSize: 4,
+    pointsToWin: 50,
+    advancementMethod: 'wins',
+    shuffleAfterGame: false,
+    firstStageAssignment: 'manual',   // 'manual' | 'random'
+    laterStageAssignment: 'collection', // 'manual' | 'collection'
+    finalsAssignment: 'auto',           // 'manual' | 'auto'
+    advancersPerGroup: 1,
+  },
+  collections: [],  // {id, name, color}
+  participants: [], // {id, name, collectionId}
+  stages: [],       // {id, number, name, status}  status: active|complete
+  groups: [],       // {id, stageId, name, participantIds}
+  games: [],        // {id, groupId, stageId, rounds:[{pid:score|'NA'}], completed, winnerId}
+};
+
+function loadState() {
+  try {
+    const s = localStorage.getItem('nertz2');
+    if (s) {
+      const p = JSON.parse(s);
+      return { ...DEF, ...p, settings: { ...DEF.settings, ...(p.settings||{}) },
+        scoringModal: null, roundInputs: {} };
+    }
+  } catch(e) {}
+  return { ...DEF, settings: { ...DEF.settings } };
+}
+
+let S = loadState();
+
+function save() { localStorage.setItem('nertz2', JSON.stringify(S)); }
+function upd(patch) { Object.assign(S, patch); save(); render(); }
+function uid() { return Math.random().toString(36).slice(2,9); }
+
+// =========================================================
+// HELPERS
+// =========================================================
+function initials(name) {
+  if (!name) return '?';
+  return name.trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,2);
+}
+function escH(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function getPart(id) { return S.participants.find(p=>p.id===id); }
+function getCol(id) { return S.collections.find(c=>c.id===id); }
+function getGroup(id) { return S.groups.find(g=>g.id===id); }
+function getGame(id) { return S.games.find(g=>g.id===id); }
+function getStage(id) { return S.stages.find(s=>s.id===id); }
+
+function activeGameForGroup(gid) {
+  return S.games.find(g=>g.groupId===gid && !g.completed);
+}
+function completedGamesForGroup(gid) {
+  return S.games.filter(g=>g.groupId===gid && g.completed);
+}
+
+function cumulative(game) {
+  const res = {};
+  game.participantIds.forEach(pid => { res[pid] = []; });
+  game.rounds.forEach((round, i) => {
+    game.participantIds.forEach(pid => {
+      const prev = i > 0 ? res[pid][i-1] : 0;
+      const v = round[pid];
+      res[pid].push(prev + (v === 'NA' || v === undefined ? 0 : (Number(v)||0)));
+    });
+  });
+  return res;
+}
+
+function playerRoundTotal(game, pid) {
+  return game.rounds.reduce((s,r) => {
+    const v = r[pid];
+    return s + (v === 'NA' || v === undefined ? 0 : (Number(v)||0));
+  }, 0);
+}
+
+function gameWinnerId(game) {
+  const cum = cumulative(game);
+  let max = -Infinity, winner = null;
+  game.participantIds.forEach(pid => {
+    const sc = cum[pid]||[];
+    const total = sc.length ? sc[sc.length-1] : 0;
+    if (total > max) { max = total; winner = pid; }
+  });
+  return winner;
+}
+
+function gameIsOver(game) {
+  const target = S.settings.pointsToWin;
+  const cum = cumulative(game);
+  return game.participantIds.some(pid => {
+    const sc = cum[pid]||[];
+    return sc.length > 0 && sc[sc.length-1] >= target;
+  });
+}
+
+function allStats() {
+  const stats = {};
+  S.participants.forEach(p => { stats[p.id] = {totalPoints:0, gamesWon:0, gamesPlayed:0}; });
+  S.games.filter(g=>g.completed).forEach(game => {
+    game.participantIds.forEach(pid => {
+      if (!stats[pid]) stats[pid] = {totalPoints:0, gamesWon:0, gamesPlayed:0};
+      stats[pid].gamesPlayed++;
+      stats[pid].totalPoints += playerRoundTotal(game, pid);
+      if (game.winnerId === pid) stats[pid].gamesWon++;
+    });
+  });
+  return stats;
+}
+
+function unassigned(stageId) {
+  const assigned = new Set(S.groups.filter(g=>g.stageId===stageId).flatMap(g=>g.participantIds));
+  return S.participants.filter(p=>!assigned.has(p.id));
+}
+
+function colorsForParticipant(pid) {
+  const p = getPart(pid);
+  if (!p || !p.collectionId) return null;
+  return getCol(p.collectionId);
+}
+
+// =========================================================
+// RENDER
+// =========================================================
+function render() {
+  document.getElementById('app').innerHTML = buildApp();
+  bindEvents();
+}
+
+function buildApp() {
+  if (S.mode === 'admin') return buildAdmin();
+  return buildPlayer();
+}
+
+// =========================================================
+// PLAYER
+// =========================================================
+function buildPlayer() {
+  const screens = {
+    home: buildHome,
+    brackets: buildBrackets,
+    leaderboard: buildLeaderboard,
+    scores: buildScoresList,
+    scorecard: buildScorecard,
+  };
+  const needBack = ['scorecard'].includes(S.screen);
+  const noNav = S.screen === 'scorecard';
+
+  const group = S.activeGroupId ? getGroup(S.activeGroupId) : null;
+  const title = S.screen === 'scorecard' ? (group?.name || 'Scorecard') :
+                S.screen === 'scores' ? 'Enter Scores' :
+                S.screen === 'brackets' ? 'Brackets' :
+                S.screen === 'leaderboard' ? 'Leaderboard' : '';
+
+  const hdr = S.screen === 'home' ? `
+    <div class="hdr"><div class="hdr-inner">
+      <div class="hdr-logo">♥ Nertz</div>
+      <div class="mode-pill">
+        <button class="mode-btn active">Players</button>
+        <button class="mode-btn" data-a="setMode" data-v="admin">Admin</button>
+      </div>
+    </div></div>` : `
+    <div class="hdr"><div class="hdr-inner">
+      ${needBack ? `<button class="hdr-back" data-a="back">‹</button>` : ''}
+      <div class="hdr-title">${escH(title)}</div>
+      <div class="mode-pill">
+        <button class="mode-btn active">Players</button>
+        <button class="mode-btn" data-a="setMode" data-v="admin">Admin</button>
+      </div>
+    </div></div>`;
+
+  const fn = screens[S.screen] || buildHome;
+  const mainClass = noNav ? 'main no-nav' : 'main';
+
+  const bnav = noNav ? '' : `
+    <nav class="bnav">
+      ${bnavItem('home','🏠','Home')}
+      ${bnavItem('brackets','🏆','Brackets')}
+      ${bnavItem('leaderboard','📊','Board')}
+      ${bnavItem('scores','✏️','Scores')}
+    </nav>`;
+
+  const modal = S.scoringModal ? buildScoreModal() : '';
+
+  return `${hdr}<div class="${mainClass}">${fn()}</div>${bnav}${modal}`;
+}
+
+function bnavItem(screen, icon, label) {
+  return `<button class="bnav-item ${S.screen===screen?'active':''}" data-a="setScreen" data-v="${screen}">
+    <span class="bnav-icon">${icon}</span>${escH(label)}
+  </button>`;
+}
+
+function buildHome() {
+  const totalGames = S.games.filter(g=>g.completed).length;
+  const activeGames = S.games.filter(g=>!g.completed).length;
+  const statText = `${S.stages.length} Stage${S.stages.length!==1?'s':''} · ${totalGames} Game${totalGames!==1?'s':''} Played${activeGames?' · '+activeGames+' Active':''}`;
+  return `<div class="home">
+    <div class="home-hero-card">
+      <div class="home-hero-eyebrow">Friends Who</div>
+      <div class="home-hero-title">Nertz Together</div>
+      <div class="home-hero-suits">♥ ♦ ♠ ♣</div>
+      <div class="home-hero-eyebrow">Stay Together</div>
+      <div class="home-party-label">Vanessa's 40th</div>
+      <div class="home-stat-pill">${statText}</div>
+    </div>
+    <div class="home-card" data-a="setScreen" data-v="brackets">
+      <div class="home-card-icon">♠</div>
+      <div class="home-card-body">
+        <h2>Brackets</h2>
+        <p>View groups and stage advancement</p>
+      </div>
+      <div class="home-card-arrow">›</div>
+    </div>
+    <div class="home-card" data-a="setScreen" data-v="leaderboard">
+      <div class="home-card-icon">♦</div>
+      <div class="home-card-body">
+        <h2>Leaderboard</h2>
+        <p>Games, wins &amp; points — sortable</p>
+      </div>
+      <div class="home-card-arrow">›</div>
+    </div>
+    <div class="home-card" data-a="setScreen" data-v="scores">
+      <div class="home-card-icon">♣</div>
+      <div class="home-card-body">
+        <h2>Enter Scores</h2>
+        <p>Score active groups round by round</p>
+      </div>
+      <div class="home-card-arrow">›</div>
+    </div>
+  </div>`;
+}
+
+function buildBrackets() {
+  if (!S.stages.length) return `<div class="empty"><div class="empty-icon">🏆</div><p>No stages set up yet. Ask the admin to configure the tournament.</p></div>`;
+
+  let html = '<div style="padding:16px;display:flex;flex-direction:column;gap:20px;">';
+  S.stages.forEach(stage => {
+    const groups = S.groups.filter(g=>g.stageId===stage.id);
+    html += `<div class="stage-block">
+      <div class="stage-label">${escH(stage.name)} ${stage.status==='complete'?'<span class="badge badge-green">Complete</span>':''}</div>
+      ${groups.length===0?`<div style="padding:0 16px;color:var(--muted);font-size:13px;">No groups yet</div>`:''}
+      ${groups.map(group => {
+        const game = activeGameForGroup(group.id) || completedGamesForGroup(group.id).slice(-1)[0];
+        const cum = game ? cumulative(game) : null;
+        return `<div class="bracket-group">
+          <div class="bracket-group-hdr">
+            <div class="bracket-group-name">${escH(group.name)}</div>
+            ${game && !game.completed ? '<span class="badge badge-blue">● Active</span>' : ''}
+            ${game && game.completed ? '<span class="badge badge-green">✓ Done</span>' : ''}
+            ${!game ? '<span class="badge badge-muted">Not started</span>' : ''}
+          </div>
+          <div class="bracket-players">
+            ${group.participantIds.map(pid => {
+              const p = getPart(pid);
+              const isWinner = game?.completed && game.winnerId === pid;
+              const total = cum ? (()=>{ const sc=cum[pid]||[]; return sc.length?sc[sc.length-1]:0; })() : null;
+              return `<div class="bracket-player ${isWinner?'winner':''}">
+                <div class="bracket-avatar ${isWinner?'winner-av':''}">${escH(initials(p?.name||'?'))}</div>
+                <div class="bracket-pname ${isWinner?'winner':''}">${escH(p?.name||'?')}</div>
+                ${total!==null?`<div class="fw7 ${total>=0?'pos':'neg'}">${total}</div>`:''}
+                ${isWinner?'<span class="text-gold">🏆</span>':''}
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+function buildLeaderboard() {
+  const stats = allStats();
+  const sortKey = S.lbSort;
+  const sorted = [...S.participants].sort((a,b) => {
+    const sa=stats[a.id]||{}, sb=stats[b.id]||{};
+    if (sortKey==='played') return (sb.gamesPlayed-sa.gamesPlayed)||(sb.gamesWon-sa.gamesWon);
+    if (sortKey==='wins') return (sb.gamesWon-sa.gamesWon)||(sb.totalPoints-sa.totalPoints);
+    return (sb.totalPoints-sa.totalPoints)||(sb.gamesWon-sa.gamesWon);
+  });
+
+  if (!sorted.length) return `<div class="empty"><div class="empty-icon">📊</div><p>No players yet. Ask the admin to add participants.</p></div>`;
+
+  const medals = ['🥇','🥈','🥉'];
+  return `
+    <div class="section" style="gap:12px">
+      <div class="lb-filters">
+        <button class="lb-filter ${sortKey==='wins'?'active':''}" data-a="setLbSort" data-v="wins">Most Wins</button>
+        <button class="lb-filter ${sortKey==='points'?'active':''}" data-a="setLbSort" data-v="points">Most Points</button>
+        <button class="lb-filter ${sortKey==='played'?'active':''}" data-a="setLbSort" data-v="played">Games Played</button>
+      </div>
+      <div class="card">
+        ${sorted.map((p,i) => {
+          const st = stats[p.id]||{totalPoints:0,gamesWon:0,gamesPlayed:0};
+          const col = p.collectionId?getCol(p.collectionId):null;
+          const mainVal = sortKey==='wins' ? st.gamesWon : sortKey==='points' ? st.totalPoints : st.gamesPlayed;
+          const mainLabel = sortKey==='wins' ? 'wins' : sortKey==='points' ? 'pts' : 'played';
+          const sub = sortKey==='wins' ? `${st.gamesPlayed} played · ${st.totalPoints>=0?'+':''}${st.totalPoints} pts` :
+                      sortKey==='points' ? `${st.gamesPlayed} played · ${st.gamesWon} wins` :
+                      `${st.gamesWon} wins · ${st.totalPoints>=0?'+':''}${st.totalPoints} pts`;
+          return `<div class="lb-row">
+            <div class="lb-rank">${i<3?medals[i]:i+1}</div>
+            <div class="lb-avatar" style="${col?`border-color:${col.color};color:${col.color}`:''}">
+              ${escH(initials(p.name))}
+            </div>
+            <div style="flex:1">
+              <div class="lb-name">${escH(p.name)}</div>
+              <div style="font-size:11px;color:var(--muted)">${sub}</div>
+            </div>
+            <div class="lb-stat">
+              <div class="lb-stat-val ${sortKey==='points'&&mainVal<0?'neg':'pos'}">${mainVal>=0&&sortKey==='points'?'+':''}${mainVal}</div>
+              <div class="lb-stat-sub">${mainLabel}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+function buildScoresList() {
+  const stages = S.stages;
+  const filter = S.stageFilter;
+
+  const filteredGroups = filter === 'all'
+    ? S.groups
+    : S.groups.filter(g=>g.stageId===filter);
+
+  return `
+    <div class="stage-filter">
+      <button class="sf-btn ${filter==='all'?'active':''}" data-a="setSFilter" data-v="all">All Stages</button>
+      ${stages.map(st=>`<button class="sf-btn ${filter===st.id?'active':''}" data-a="setSFilter" data-v="${st.id}">${escH(st.name)}</button>`).join('')}
+    </div>
+    ${filteredGroups.length===0?`<div class="empty"><div class="empty-icon">✏️</div><p>No groups to score${filter!=='all'?' in this stage':''}.</p></div>`:''}
+    <div class="card" style="margin:0 16px">
+      ${filteredGroups.map(group => {
+        const stage = getStage(group.stageId);
+        const active = activeGameForGroup(group.id);
+        const done = completedGamesForGroup(group.id);
+        const players = group.participantIds.map(pid=>getPart(pid));
+        return `<div class="group-list-item" data-a="openScorecard" data-gid="${group.id}">
+          <div class="group-avatar">${active?'🟢':'♥'}</div>
+          <div class="group-info">
+            <div class="group-info-name">${escH(group.name)}</div>
+            <div class="group-info-sub">${escH(stage?.name||'')} · ${players.map(p=>initials(p?.name||'?')).join(', ')} · ${done.length} game${done.length!==1?'s':''} done</div>
+          </div>
+          <div style="color:var(--border);font-size:20px">›</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function buildScorecard() {
+  const gid = S.activeGroupId;
+  const group = getGroup(gid);
+  if (!group) return `<div class="empty"><p>Group not found.</p></div>`;
+
+  const activeGame = activeGameForGroup(gid);
+  const doneGames = completedGamesForGroup(gid);
+
+  let html = '';
+
+  if (activeGame) {
+    html += buildActiveScorecardView(activeGame);
+  } else {
+    const stage = getStage(group.stageId);
+    html += `<div style="padding:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:13px;color:var(--muted)">${escH(stage?.name||'')} · ${group.participantIds.length} players</span>
+      <button class="btn btn-primary btn-sm" data-a="startGame" data-gid="${gid}">▶ New Game</button>
+    </div>`;
+  }
+
+  if (doneGames.length) {
+    html += `<div class="sc-history">
+      <div class="sc-history-title">Completed Games (${doneGames.length})</div>
+      ${doneGames.map((game,i) => buildCompletedGameSummary(game, i+1)).join('')}
+    </div>`;
+  }
+
+  if (!activeGame && !doneGames.length) {
+    html += `<div class="empty"><div class="empty-icon">🎴</div><p>No games yet. Start a game to begin scoring.</p></div>`;
+  }
+
+  return html;
+}
+
+function buildActiveScorecardView(game) {
+  const cum = cumulative(game);
+  const target = S.settings.pointsToWin;
+  const over = gameIsOver(game);
+  const round = S.roundInputs;
+
+  const hasRoundInput = pid => round[pid] !== undefined && round[pid] !== '';
+  const allHaveInput = game.participantIds.every(pid => hasRoundInput(pid));
+
+  const currentRoundNum = game.rounds.length + 1;
+
+  let html = '';
+
+  html += `<div class="sc-round-info" style="padding:14px 16px 4px">
+    <div class="sc-round-label">${over?'Game Over':'Round '+currentRoundNum}</div>
+    <div class="sc-target">Target: ${target} pts</div>
+  </div>`;
+
+  if (!over) {
+    html += `<div class="sc-players">`;
+    game.participantIds.forEach(pid => {
+      const p = getPart(pid);
+      const col = p?.collectionId ? getCol(p.collectionId) : null;
+      const inp = round[pid];
+      const hasScore = inp !== undefined && inp !== '';
+      const isNA = inp === 'NA';
+      const sc = cum[pid]||[];
+      const total = sc.length ? sc[sc.length-1] : 0;
+
+      html += `<div class="sc-player-tile" data-a="openScoreModal" data-pid="${pid}">
+        <div class="sc-avatar ${hasScore&&!isNA?'has-score':''} ${isNA?'is-na':''}" style="${col?`border-color:${col.color}`:''}">
+          ${escH(initials(p?.name||'?'))}
+          ${hasScore?`<div class="sc-avatar-check">${isNA?'—':'✓'}</div>`:''}
+        </div>
+        <div class="sc-pname">${escH(p?.name||'?')}</div>
+        <div class="sc-pscore ${total>=0?'pos':'neg'}">${total}</div>
+      </div>`;
+    });
+    html += `</div>`;
+
+    if (!allHaveInput) {
+      html += `<div style="padding:4px 16px 12px;font-size:13px;color:var(--muted)">Tap a player to enter their round score</div>`;
+    }
+  }
+
+  html += `<div class="sc-progress">`;
+  game.participantIds.forEach(pid => {
+    const p = getPart(pid);
+    const sc = cum[pid]||[];
+    const total = sc.length ? sc[sc.length-1] : 0;
+    const pct = Math.min(100, Math.max(0, (total/target)*100));
+    const hit = total >= target;
+    html += `<div class="sc-progress-row">
+      <div class="sc-progress-name">${escH(initials(p?.name||'?'))} ${escH((p?.name||'').split(' ')[0])}</div>
+      <div class="sc-progress-bar-wrap"><div class="sc-progress-fill ${hit?'hit':''}" style="width:${pct}%"></div></div>
+      <div class="sc-progress-pts ${hit?'text-gold':total>=0?'pos':'neg'}">${total}</div>
+    </div>`;
+  });
+  html += `</div>`;
+
+  html += `<div class="sc-actions">`;
+  if (over) {
+    const wid = gameWinnerId(game);
+    const wp = getPart(wid);
+    html += `<div class="sc-winner-banner">🏆 ${escH(wp?.name||'?')} wins this game!</div>`;
+    html += `<button class="btn btn-gold btn-full" data-a="completeGame" data-gid="${game.id}">Save & Complete Game</button>`;
+  } else if (allHaveInput) {
+    html += `<button class="btn btn-primary btn-full" data-a="submitRound" data-gid="${game.id}">Submit Round ${currentRoundNum}</button>`;
+    html += `<button class="btn btn-ghost btn-full btn-sm" data-a="endGame" data-gid="${game.id}">End Game Early</button>`;
+  } else {
+    html += `<button class="btn btn-ghost btn-full btn-sm" data-a="endGame" data-gid="${game.id}">End Game Early</button>`;
+  }
+  html += `</div>`;
+
+  if (game.rounds.length > 0) {
+    html += buildRoundHistory(game, cum);
+  }
+
+  return html;
+}
+
+function buildRoundHistory(game, cum) {
+  const players = game.participantIds.map(pid=>getPart(pid));
+  let html = `<div class="sc-history">
+    <div class="sc-history-title">Round History</div>
+    <div class="sc-table-wrap"><table class="sc-table">
+      <thead><tr>
+        <th class="round-col">Rd</th>
+        ${players.map(p=>`<th>${escH(initials(p?.name||'?'))}</th>`).join('')}
+      </tr></thead>
+      <tbody>`;
+
+  game.rounds.forEach((round, ri) => {
+    html += `<tr>
+      <td class="round-col">${ri+1}</td>
+      ${game.participantIds.map(pid => {
+        const v = round[pid];
+        const total = (cum[pid]||[])[ri]||0;
+        if (v === 'NA') return `<td class="na-cell">N/A</td>`;
+        const n = Number(v)||0;
+        return `<td>
+          <div class="${n>=0?'pos':'neg'}">${n>=0?'+':''}${n}</div>
+          <div style="font-size:10px;color:var(--muted)">${total}</div>
+        </td>`;
+      }).join('')}
+    </tr>`;
+  });
+
+  html += `<tr class="total-row">
+    <td class="round-col" style="font-weight:700">Total</td>
+    ${game.participantIds.map(pid => {
+      const sc = cum[pid]||[];
+      const total = sc.length?sc[sc.length-1]:0;
+      return `<td class="${total>=0?'pos':'neg'}" style="font-weight:700">${total}</td>`;
+    }).join('')}
+  </tr>`;
+
+  html += `</tbody></table></div></div>`;
+  return html;
+}
+
+function buildCompletedGameSummary(game, num) {
+  const cum = cumulative(game);
+  const winner = getPart(game.winnerId);
+  const players = game.participantIds.map(pid=>getPart(pid));
+
+  return `<div style="border-top:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:10px;padding:12px 16px">
+      <div style="font-size:13px;color:var(--muted);font-weight:700">Game ${num}</div>
+      <span class="badge badge-gold">🏆 ${escH(winner?.name||'?')}</span>
+    </div>
+    <div class="sc-table-wrap"><table class="sc-table">
+      <thead><tr>
+        <th class="round-col">Rd</th>
+        ${players.map(p=>`<th ${game.winnerId===p?.id?'class="winner-col"':''}>${escH(initials(p?.name||'?'))}</th>`).join('')}
+      </tr></thead>
+      <tbody>
+        ${game.rounds.map((round,ri)=>`<tr>
+          <td class="round-col">${ri+1}</td>
+          ${game.participantIds.map(pid=>{
+            const v=round[pid], total=(cum[pid]||[])[ri]||0;
+            if(v==='NA') return `<td class="na-cell">N/A</td>`;
+            const n=Number(v)||0;
+            return `<td ${game.winnerId===pid?'class="winner-col"':''}><div class="${n>=0?'pos':'neg'}">${n>=0?'+':''}${n}</div><div style="font-size:10px;color:var(--muted)">${total}</div></td>`;
+          }).join('')}
+        </tr>`).join('')}
+        <tr class="total-row">
+          <td class="round-col" style="font-weight:700">Final</td>
+          ${game.participantIds.map(pid=>{
+            const sc=cum[pid]||[];
+            const total=sc.length?sc[sc.length-1]:0;
+            return `<td ${game.winnerId===pid?'class="winner-col"':''}><span class="${total>=0?'pos':'neg'}">${total}</span></td>`;
+          }).join('')}
+        </tr>
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+function buildScoreModal() {
+  const pid = S.scoringModal.pid;
+  const p = getPart(pid);
+  const col = p?.collectionId ? getCol(p.collectionId) : null;
+  const game = activeGameForGroup(S.activeGroupId);
+  const cum = game ? cumulative(game) : {};
+  const sc = cum[pid]||[];
+  const total = sc.length ? sc[sc.length-1] : 0;
+
+  const curVal = S.roundInputs[pid];
+  const isNA = curVal === 'NA';
+
+  return `<div class="overlay" data-a="closeModal">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-player">
+        <div class="sheet-avatar" style="${col?`background:${col.color}`:''}">
+          ${escH(initials(p?.name||'?'))}
+        </div>
+        <div class="sheet-name">${escH(p?.name||'?')}</div>
+        <div class="sheet-total">Running total: <strong class="${total>=0?'pos':'neg'}">${total}</strong></div>
+      </div>
+      <input type="number" class="score-input-xl" id="score-inp" value="${isNA?'':curVal||''}"
+        placeholder="Score" inputmode="numeric" ${isNA?'disabled':''}>
+      <div class="na-toggle ${isNA?'active':''}" data-a="toggleNA" data-pid="${pid}">
+        ${isNA?'✓ ':''} N/A — Player sat out this round
+      </div>
+      <button class="btn btn-primary btn-full" data-a="saveScore" data-pid="${pid}">
+        Save Score
+      </button>
+    </div>
+  </div>`;
+}
+
+// =========================================================
+// ADMIN
+// =========================================================
+function buildAdmin() {
+  const tabs = [
+    ['settings','Settings'],['players','Players'],['stages','Stages'],['standings','Standings']
+  ];
+  return `
+    <div class="hdr"><div class="hdr-inner">
+      <div class="hdr-logo">♥ Admin</div>
+      <div class="mode-pill">
+        <button class="mode-btn" data-a="setMode" data-v="player">Players</button>
+        <button class="mode-btn active">Admin</button>
+      </div>
+    </div></div>
+    <div class="admin-tabs">
+      ${tabs.map(([id,label])=>`<button class="admin-tab ${S.adminTab===id?'active':''}" data-a="setAdminTab" data-v="${id}">${label}</button>`).join('')}
+    </div>
+    <div class="main no-nav">
+      ${S.adminTab==='settings'?buildAdminSettings():
+        S.adminTab==='players'?buildAdminPlayers():
+        S.adminTab==='stages'?buildAdminStages():
+        buildAdminStandings()}
+    </div>`;
+}
+
+function buildAdminSettings() {
+  const s = S.settings;
+  return `<div class="section">
+    <div class="field">
+      <div class="label">Players per Group</div>
+      <div class="seg">${[2,3,4,5].map(n=>`<button class="seg-btn ${s.gameSize===n?'active':''}" data-a="setSetting" data-k="gameSize" data-v="${n}">${n}</button>`).join('')}</div>
+    </div>
+    <div class="field">
+      <div class="label">Points to Win a Game</div>
+      <input type="number" class="input" value="${s.pointsToWin}" data-a="setSettingNum" data-k="pointsToWin" inputmode="numeric" min="1">
+    </div>
+    <div class="field">
+      <div class="label">Players Advancing Per Group</div>
+      <div class="seg">${[1,2,3].map(n=>`<button class="seg-btn ${s.advancersPerGroup===n?'active':''}" data-a="setSetting" data-k="advancersPerGroup" data-v="${n}">${n}</button>`).join('')}</div>
+    </div>
+    <div class="field">
+      <div class="label">Advancement Determined By</div>
+      <div class="seg">
+        <button class="seg-btn ${s.advancementMethod==='wins'?'active':''}" data-a="setSetting" data-k="advancementMethod" data-v="wins">Most Wins</button>
+        <button class="seg-btn ${s.advancementMethod==='points'?'active':''}" data-a="setSetting" data-k="advancementMethod" data-v="points">Most Points</button>
+      </div>
+    </div>
+    <div class="field">
+      <div class="label">Stage 1 Assignment</div>
+      <div class="seg">
+        <button class="seg-btn ${s.firstStageAssignment==='manual'?'active':''}" data-a="setSetting" data-k="firstStageAssignment" data-v="manual">Manual</button>
+        <button class="seg-btn ${s.firstStageAssignment==='random'?'active':''}" data-a="setSetting" data-k="firstStageAssignment" data-v="random">Random</button>
+      </div>
+    </div>
+    <div class="field">
+      <div class="label">Later Stages Assignment</div>
+      <div class="seg">
+        <button class="seg-btn ${s.laterStageAssignment==='manual'?'active':''}" data-a="setSetting" data-k="laterStageAssignment" data-v="manual">Manual</button>
+        <button class="seg-btn ${s.laterStageAssignment==='collection'?'active':''}" data-a="setSetting" data-k="laterStageAssignment" data-v="collection">By Collection</button>
+      </div>
+    </div>
+    <div class="field">
+      <div class="label">Finals Assignment</div>
+      <div class="seg">
+        <button class="seg-btn ${s.finalsAssignment==='manual'?'active':''}" data-a="setSetting" data-k="finalsAssignment" data-v="manual">Manual</button>
+        <button class="seg-btn ${s.finalsAssignment==='auto'?'active':''}" data-a="setSetting" data-k="finalsAssignment" data-v="auto">Auto-generate</button>
+      </div>
+    </div>
+    <div class="field">
+      <div class="label">After Each Game</div>
+      <div class="seg">
+        <button class="seg-btn ${!s.shuffleAfterGame?'active':''}" data-a="setSetting" data-k="shuffleAfterGame" data-v="false">Keep Group</button>
+        <button class="seg-btn ${s.shuffleAfterGame?'active':''}" data-a="setSetting" data-k="shuffleAfterGame" data-v="true">Shuffle</button>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <button class="btn btn-danger btn-full btn-sm" data-a="resetAll">⚠ Reset Tournament</button>
+  </div>`;
+}
+
+function buildAdminPlayers() {
+  const cols = S.collections;
+  const byCol = {}, none = [];
+  S.participants.forEach(p => {
+    p.collectionId ? (byCol[p.collectionId]=byCol[p.collectionId]||[]).push(p) : none.push(p);
+  });
+
+  let listHtml = '';
+  cols.forEach(c => {
+    const ps = byCol[c.id]||[];
+    if (!ps.length) return;
+    listHtml += `<div class="card" style="margin:0">
+      <div class="card-header" style="border-bottom:1px solid var(--border);border-left:3px solid ${c.color}">
+        <div class="card-title" style="color:${c.color}">${escH(c.name)}</div>
+        <span class="badge badge-muted">${ps.length}</span>
+      </div>
+      ${ps.map(p=>playerRow(p)).join('')}
+    </div>`;
+  });
+  if (none.length) {
+    listHtml += `<div class="card" style="margin:0">
+      ${cols.length?`<div class="card-header" style="border-bottom:1px solid var(--border)"><div class="card-title text-muted">No Collection</div></div>`:''}
+      ${none.map(p=>playerRow(p)).join('')}
+    </div>`;
+  }
+
+  return `<div class="section" style="gap:12px">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Collections</div>
+        <button class="btn btn-ghost btn-xs" data-a="toggleForm" data-f="col-form">+ Add</button>
+      </div>
+      <div id="col-form" class="hidden" style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border)">
+        <input type="text" class="input input-sm" id="col-name" placeholder="e.g. Kids, Beginners, Advanced">
+        <div style="display:flex;gap:10px;align-items:center">
+          <input type="color" id="col-color" value="#4f8ef7">
+          <span class="text-muted" style="font-size:13px">Pick a color</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm" data-a="addCollection">Add Collection</button>
+          <button class="btn btn-ghost btn-sm" data-a="toggleForm" data-f="col-form">Cancel</button>
+        </div>
+      </div>
+      ${cols.length===0?`<div style="padding:12px 16px;font-size:13px;color:var(--muted)">Optional: group players by skill level or age.</div>`:''}
+      ${cols.length?`<div style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid var(--border)">
+        ${cols.map(c=>`<div class="chip"><span class="chip-dot" style="background:${c.color}"></span>${escH(c.name)}<button class="btn-icon red" data-a="deleteCollection" data-id="${c.id}" style="font-size:14px;padding:0 2px">×</button></div>`).join('')}
+      </div>`:''}
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Players <span class="badge badge-muted">${S.participants.length}</span></div>
+        <button class="btn btn-ghost btn-xs" data-a="toggleForm" data-f="part-form">+ Add</button>
+      </div>
+      <div id="part-form" class="hidden" style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border)">
+        <input type="text" class="input input-sm" id="part-name" placeholder="Player name">
+        ${cols.length?`<select class="input input-sm" id="part-col">
+          <option value="">No collection</option>
+          ${cols.map(c=>`<option value="${c.id}">${escH(c.name)}</option>`).join('')}
+        </select>`:''}
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm" data-a="addPlayer">Add Player</button>
+          <button class="btn btn-ghost btn-sm" data-a="toggleForm" data-f="part-form">Cancel</button>
+        </div>
+      </div>
+      ${!S.participants.length?`<div style="padding:12px 16px;font-size:13px;color:var(--muted)">Add players to get started.</div>`:''}
+    </div>
+
+    ${listHtml}
+  </div>`;
+}
+
+function playerRow(p) {
+  const c = p.collectionId ? getCol(p.collectionId) : null;
+  return `<div class="list-row">
+    <div class="bracket-avatar" style="${c?`border-color:${c.color};color:${c.color}`:''}">
+      ${escH(initials(p.name))}
+    </div>
+    <div style="flex:1">
+      <div style="font-size:15px;font-weight:600">${escH(p.name)}</div>
+      ${c?`<div style="font-size:12px;color:var(--muted)">${escH(c.name)}</div>`:''}
+    </div>
+    ${S.collections.length?`<select class="input input-sm" data-a="setPlayerCol" data-id="${p.id}" style="width:auto;min-width:100px">
+      <option value="">None</option>
+      ${S.collections.map(c2=>`<option value="${c2.id}" ${p.collectionId===c2.id?'selected':''}>${escH(c2.name)}</option>`).join('')}
+    </select>`:''}
+    <button class="btn-icon red" data-a="deletePlayer" data-id="${p.id}">×</button>
+  </div>`;
+}
+
+function stageAssignmentMode(stageId) {
+  const idx = S.stages.findIndex(s => s.id === stageId);
+  const lastIdx = S.stages.length - 1;
+  if (idx <= 0 || S.stages.length === 1) return S.settings.firstStageAssignment;
+  if (idx === lastIdx) return S.settings.finalsAssignment;
+  return S.settings.laterStageAssignment;
+}
+
+function buildAdminStages() {
+  const lastIdx = S.stages.length - 1;
+  return `<div class="section" style="gap:12px">
+    <div class="btn-row" style="flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" data-a="addStage">+ Add Stage</button>
+    </div>
+
+    ${S.stages.length===0?`<div class="empty"><div class="empty-icon">🏆</div><p>Add a stage to create tournament groups.</p></div>`:''}
+
+    ${S.stages.map((stage, stageIdx) => {
+      const stageGroups = S.groups.filter(g=>g.stageId===stage.id);
+      const ua = unassigned(stage.id);
+      const mode = stageAssignmentMode(stage.id);
+      const isManual = mode === 'manual';
+      const isFirstStage = stageIdx === 0;
+      const isFinals = stageIdx === lastIdx && lastIdx > 0;
+      const isLaterStage = !isFirstStage && !isFinals;
+
+      const assignBtn = stage.status==='active' ? (
+        isFirstStage && mode==='random' ? `<button class="btn btn-ghost btn-xs" data-a="randomizeStage" data-sid="${stage.id}">🔀 Randomize</button>` :
+        isLaterStage && mode==='collection' ? `<button class="btn btn-ghost btn-xs" data-a="autoAssignFromPrev" data-sid="${stage.id}">↑ Auto-assign</button>` :
+        isFinals && mode==='auto' ? `<button class="btn btn-ghost btn-xs" data-a="generateFinals" data-sid="${stage.id}">🏆 Generate Finals</button>` : ''
+      ) : '';
+
+      return `<div class="card">
+        <div class="card-header">
+          <div class="card-title">${escH(stage.name)}</div>
+          <div class="btn-row">
+            ${stage.status==='active'?`<button class="btn btn-ghost btn-xs" data-a="addGroup" data-sid="${stage.id}">+ Group</button>`:''}
+            ${assignBtn}
+            <span class="badge ${stage.status==='complete'?'badge-green':'badge-blue'}">${stage.status==='complete'?'Complete':'Active'}</span>
+          </div>
+        </div>
+
+        ${stageGroups.map(group => {
+          const active = activeGameForGroup(group.id);
+          const done = completedGamesForGroup(group.id);
+          return `<div style="border-top:1px solid var(--border);padding:12px 14px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <div style="font-size:14px;font-weight:700;flex:1">${escH(group.name)}</div>
+              ${active?'<span class="badge badge-blue">Active</span>':''}
+              ${done.length?`<span class="badge badge-muted">${done.length} done</span>`:''}
+              <button class="btn-icon red" data-a="deleteGroup" data-id="${group.id}">×</button>
+            </div>
+            <div class="chips">
+              ${group.participantIds.map(pid=>{
+                const p=getPart(pid);
+                const col=p?.collectionId?getCol(p.collectionId):null;
+                return `<div class="chip">${col?`<span class="chip-dot" style="background:${col.color}"></span>`:''}${escH(p?.name||'?')}${isManual?`<button class="btn-icon" data-a="removeFromGroup" data-gid="${group.id}" data-pid="${pid}" style="font-size:12px;padding:0 2px">×</button>`:''}</div>`;
+              }).join('')}
+            </div>
+            ${isManual&&ua.length>0?`<div style="margin-top:8px;display:flex;gap:6px">
+              <select class="input input-sm" id="atg-${group.id}" style="flex:1">
+                <option value="">Add player…</option>
+                ${ua.map(p=>`<option value="${p.id}">${escH(p.name)}</option>`).join('')}
+              </select>
+              <button class="btn btn-ghost btn-sm" data-a="addToGroup" data-gid="${group.id}">Add</button>
+            </div>`:''}
+          </div>`;
+        }).join('')}
+
+        ${stageGroups.length===0?`<div style="padding:12px 14px;font-size:13px;color:var(--muted)">No groups yet. ${isManual?'Add groups and assign players.':isFinals?'Use Generate Finals to auto-create the finals group.':isFirstStage?'Use Randomize to auto-assign players.':'Use Auto-assign to pull advancers from the previous stage.'}</div>`:''}
+        ${isManual&&ua.length>0&&stageGroups.length>0?`<div style="padding:8px 14px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)">${ua.length} player${ua.length!==1?'s':''} unassigned</div>`:''}
+
+        <div style="border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap">
+          ${stage.status==='active'?`<button class="btn btn-ghost btn-xs" data-a="markStageComplete" data-id="${stage.id}">Mark Complete</button>`:''}
+          <button class="btn btn-danger btn-xs" data-a="deleteStage" data-id="${stage.id}">Delete Stage</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function buildAdminStandings() {
+  const stats = allStats();
+  const method = S.settings.advancementMethod;
+  const sorted = [...S.participants].sort((a,b)=>{
+    const sa=stats[a.id]||{}, sb=stats[b.id]||{};
+    if (method==='wins') return (sb.gamesWon-sa.gamesWon)||(sb.totalPoints-sa.totalPoints);
+    return (sb.totalPoints-sa.totalPoints)||(sb.gamesWon-sa.gamesWon);
+  });
+
+  if (!sorted.length) return `<div class="empty"><div class="empty-icon">🏆</div><p>Standings appear after games are completed.</p></div>`;
+
+  return `<div class="section"><div class="card">
+    ${sorted.map((p,i)=>{
+      const st=stats[p.id]||{totalPoints:0,gamesWon:0,gamesPlayed:0};
+      const col=p.collectionId?getCol(p.collectionId):null;
+      const medals=['🥇','🥈','🥉'];
+      return `<div class="list-row">
+        <div style="font-size:18px;width:28px;text-align:center">${i<3?medals[i]:i+1}</div>
+        <div class="bracket-avatar" style="${col?`border-color:${col.color};color:${col.color}`:''}">
+          ${escH(initials(p.name))}
+        </div>
+        <div style="flex:1">
+          <div style="font-size:15px;font-weight:600">${escH(p.name)}</div>
+          <div style="font-size:12px;color:var(--muted)">${st.gamesPlayed} played · ${st.gamesWon} wins</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:16px;font-weight:700" class="${st.totalPoints>=0?'pos':'neg'}">${st.totalPoints>=0?'+':''}${st.totalPoints}</div>
+          <div style="font-size:11px;color:var(--muted)">points</div>
+        </div>
+      </div>`;
+    }).join('')}
+  </div></div>`;
+}
+
+// =========================================================
+// EVENTS
+// =========================================================
+function bindEvents() {
+  const app = document.getElementById('app');
+  app.addEventListener('click', onClick);
+  app.addEventListener('change', onChange);
+  app.addEventListener('keydown', onKey);
+}
+
+function onClick(e) {
+  const el = e.target.closest('[data-a]');
+  if (!el) return;
+  const a=el.dataset.a, v=el.dataset.v, id=el.dataset.id,
+        gid=el.dataset.gid, sid=el.dataset.sid, pid=el.dataset.pid;
+
+  if (a==='setMode') upd({mode:v, screen:'home'});
+  else if (a==='setScreen') upd({screen:v});
+  else if (a==='back') upd({screen:'scores', scoringModal:null, roundInputs:{}});
+  else if (a==='setAdminTab') upd({adminTab:v});
+  else if (a==='setLbSort') upd({lbSort:v});
+  else if (a==='setSFilter') upd({stageFilter:v});
+  else if (a==='setSetting') {
+    let val=v;
+    if(v==='true') val=true; else if(v==='false') val=false; else if(!isNaN(+v)) val=+v;
+    S.settings={...S.settings,[el.dataset.k]:val}; save(); render();
+  }
+  else if (a==='toggleForm') {
+    const f=document.getElementById(el.dataset.f);
+    if(f) f.classList.toggle('hidden');
+  }
+  else if (a==='addCollection') doAddCollection();
+  else if (a==='deleteCollection') doDeleteCollection(id);
+  else if (a==='addPlayer') doAddPlayer();
+  else if (a==='deletePlayer') doDeletePlayer(id);
+  else if (a==='addStage') doAddStage();
+  else if (a==='deleteStage') doDeleteStage(id);
+  else if (a==='markStageComplete') { const st=getStage(id); if(st){st.status='complete';save();render();} }
+  else if (a==='addGroup') doAddGroup(sid);
+  else if (a==='deleteGroup') doDeleteGroup(id);
+  else if (a==='randomizeStage') doRandomizeStage(sid);
+  else if (a==='autoAssignFromPrev') doAutoAssignFromPrev(sid);
+  else if (a==='generateFinals') doGenerateFinals(sid);
+  else if (a==='addToGroup') doAddToGroup(gid);
+  else if (a==='removeFromGroup') doRemoveFromGroup(gid,pid);
+  else if (a==='openScorecard') upd({activeGroupId:gid, screen:'scorecard', roundInputs:{}});
+  else if (a==='startGame') doStartGame(gid);
+  else if (a==='openScoreModal') doOpenScoreModal(pid);
+  else if (a==='closeModal') { if (!e.target.closest('.sheet')) upd({scoringModal:null}); }
+  else if (a==='toggleNA') doToggleNA(pid);
+  else if (a==='saveScore') doSaveScore(pid);
+  else if (a==='submitRound') doSubmitRound(gid);
+  else if (a==='completeGame') doCompleteGame(gid);
+  else if (a==='endGame') doEndGame(gid);
+  else if (a==='resetAll') { if(confirm('Reset entire tournament?')) { localStorage.removeItem('nertz2'); S=loadState(); render(); } }
+}
+
+function onChange(e) {
+  const el=e.target, a=el.dataset.a;
+  if (a==='setSettingNum') { S.settings={...S.settings,[el.dataset.k]:parseInt(el.value)||1}; save(); }
+  if (a==='setPlayerCol') {
+    const p=S.participants.find(p=>p.id===el.dataset.id);
+    if(p){p.collectionId=el.value||null;save();render();}
+  }
+}
+
+function onKey(e) {
+  if (e.key==='Enter') {
+    if (e.target.id==='col-name') { e.preventDefault(); doAddCollection(); }
+    if (e.target.id==='part-name') { e.preventDefault(); doAddPlayer(); }
+    if (e.target.id==='score-inp') { e.preventDefault(); doSaveScore(S.scoringModal?.pid); }
+  }
+}
+
+// =========================================================
+// ACTIONS
+// =========================================================
+function doAddCollection() {
+  const name=document.getElementById('col-name')?.value.trim();
+  const color=document.getElementById('col-color')?.value||'#4f8ef7';
+  if(!name) return;
+  S.collections.push({id:uid(),name,color});
+  save(); render();
+}
+function doDeleteCollection(id) {
+  S.collections=S.collections.filter(c=>c.id!==id);
+  S.participants.forEach(p=>{if(p.collectionId===id)p.collectionId=null;});
+  save(); render();
+}
+function doAddPlayer() {
+  const name=document.getElementById('part-name')?.value.trim();
+  if(!name) return;
+  const col=document.getElementById('part-col')?.value||null;
+  S.participants.push({id:uid(),name,collectionId:col});
+  save(); render();
+}
+function doDeletePlayer(id) {
+  S.participants=S.participants.filter(p=>p.id!==id);
+  S.groups.forEach(g=>{g.participantIds=g.participantIds.filter(pid=>pid!==id);});
+  save(); render();
+}
+function doAddStage() {
+  const num=S.stages.length+1;
+  S.stages.push({id:uid(),number:num,name:`Stage ${num}`,status:'active'});
+  save(); render();
+}
+function doDeleteStage(id) {
+  if(!confirm('Delete this stage and all its groups?')) return;
+  const gids=S.groups.filter(g=>g.stageId===id).map(g=>g.id);
+  S.games=S.games.filter(g=>!gids.includes(g.groupId));
+  S.groups=S.groups.filter(g=>g.stageId!==id);
+  S.stages=S.stages.filter(s=>s.id!==id);
+  save(); render();
+}
+function doAddGroup(stageId) {
+  const sid=stageId||S.stages[S.stages.length-1]?.id;
+  if(!sid) return;
+  const count=S.groups.filter(g=>g.stageId===sid).length;
+  S.groups.push({id:uid(),stageId:sid,name:`Table ${count+1}`,participantIds:[]});
+  save(); render();
+}
+function doDeleteGroup(id) {
+  S.games=S.games.filter(g=>g.groupId!==id);
+  S.groups=S.groups.filter(g=>g.id!==id);
+  save(); render();
+}
+function getStageAdvancers(stageId) {
+  const groups = S.groups.filter(g => g.stageId === stageId);
+  const method = S.settings.advancementMethod;
+  const n = S.settings.advancersPerGroup;
+  const stats = allStats();
+  const advancers = [];
+  groups.forEach(group => {
+    const ranked = [...group.participantIds].sort((a, b) => {
+      const sa = stats[a]||{}, sb = stats[b]||{};
+      return method === 'wins'
+        ? (sb.gamesWon-sa.gamesWon)||(sb.totalPoints-sa.totalPoints)
+        : (sb.totalPoints-sa.totalPoints)||(sb.gamesWon-sa.gamesWon);
+    });
+    advancers.push(...ranked.slice(0, n));
+  });
+  return [...new Set(advancers)];
+}
+
+function doRandomizeStage(sid) {
+  const stage = getStage(sid);
+  if (!stage) { alert('Stage not found.'); return; }
+  const size = S.settings.gameSize;
+  const byCol = {};
+  S.participants.forEach(p => {
+    const k = p.collectionId || '__all__';
+    (byCol[k] = byCol[k]||[]).push(p.id);
+  });
+  const newGroups = [];
+  let tNum = 1;
+  Object.entries(byCol).forEach(([cid, pids]) => {
+    const shuffled = [...pids].sort(() => Math.random() - 0.5);
+    for (let i = 0; i < shuffled.length; i += size) {
+      const chunk = shuffled.slice(i, i + size);
+      const col = cid !== '__all__' ? getCol(cid) : null;
+      newGroups.push({ id: uid(), stageId: stage.id, name: `Table ${tNum++}${col ? ' ('+col.name+')' : ''}`, participantIds: chunk });
+    }
+  });
+  S.groups = S.groups.filter(g => g.stageId !== stage.id).concat(newGroups);
+  save(); render();
+}
+
+function doAutoAssignFromPrev(sid) {
+  const stageIdx = S.stages.findIndex(s => s.id === sid);
+  if (stageIdx <= 0) { alert('No previous stage to pull advancers from.'); return; }
+  const prevStageId = S.stages[stageIdx - 1].id;
+  const advancers = getStageAdvancers(prevStageId);
+  if (advancers.length === 0) { alert('No advancers found from the previous stage.'); return; }
+  const size = S.settings.gameSize;
+  const byCol = {};
+  advancers.forEach(pid => {
+    const p = getPart(pid);
+    const k = p?.collectionId || '__all__';
+    (byCol[k] = byCol[k]||[]).push(pid);
+  });
+  const newGroups = [];
+  let tNum = 1;
+  Object.entries(byCol).forEach(([cid, pids]) => {
+    const shuffled = [...pids].sort(() => Math.random() - 0.5);
+    for (let i = 0; i < shuffled.length; i += size) {
+      const chunk = shuffled.slice(i, i + size);
+      const col = cid !== '__all__' ? getCol(cid) : null;
+      newGroups.push({ id: uid(), stageId: sid, name: `Table ${tNum++}${col ? ' ('+col.name+')' : ''}`, participantIds: chunk });
+    }
+  });
+  S.groups = S.groups.filter(g => g.stageId !== sid).concat(newGroups);
+  save(); render();
+}
+
+function doGenerateFinals(sid) {
+  const stageIdx = S.stages.findIndex(s => s.id === sid);
+  if (stageIdx <= 0) { alert('No previous stage to pull winners from.'); return; }
+  const prevStageId = S.stages[stageIdx - 1].id;
+  const advancers = getStageAdvancers(prevStageId);
+  if (advancers.length === 0) { alert('No advancers found from the previous stage.'); return; }
+  const stats = allStats();
+  const method = S.settings.advancementMethod;
+  const byCol = {};
+  advancers.forEach(pid => {
+    const p = getPart(pid);
+    const k = p?.collectionId || '__all__';
+    (byCol[k] = byCol[k]||[]).push(pid);
+  });
+  const finalists = [];
+  Object.entries(byCol).forEach(([, pids]) => {
+    const ranked = [...pids].sort((a, b) => {
+      const sa = stats[a]||{}, sb = stats[b]||{};
+      return method === 'wins'
+        ? (sb.gamesWon-sa.gamesWon)||(sb.totalPoints-sa.totalPoints)
+        : (sb.totalPoints-sa.totalPoints)||(sb.gamesWon-sa.gamesWon);
+    });
+    finalists.push(ranked[0]);
+  });
+  const size = S.settings.gameSize;
+  const newGroups = [];
+  for (let i = 0; i < finalists.length; i += size) {
+    const chunk = finalists.slice(i, i + size);
+    newGroups.push({ id: uid(), stageId: sid, name: newGroups.length === 0 ? 'Finals' : `Finals ${newGroups.length + 1}`, participantIds: chunk });
+  }
+  S.groups = S.groups.filter(g => g.stageId !== sid).concat(newGroups);
+  save(); render();
+}
+function doAddToGroup(gid) {
+  const sel=document.getElementById('atg-'+gid);
+  const pid=sel?.value; if(!pid) return;
+  const g=S.groups.find(g=>g.id===gid);
+  if(g&&!g.participantIds.includes(pid)){g.participantIds.push(pid);save();render();}
+}
+function doRemoveFromGroup(gid,pid) {
+  const g=S.groups.find(g=>g.id===gid);
+  if(g){g.participantIds=g.participantIds.filter(id=>id!==pid);save();render();}
+}
+function doStartGame(gid) {
+  const group=getGroup(gid);
+  if(!group||group.participantIds.length<2){alert('Group needs at least 2 players.');return;}
+  const existing=activeGameForGroup(gid);
+  if(existing){render();return;}
+  S.games.push({id:uid(),groupId:gid,stageId:group.stageId,participantIds:[...group.participantIds],rounds:[],completed:false,winnerId:null,startTime:Date.now()});
+  upd({roundInputs:{}});
+}
+function doOpenScoreModal(pid) {
+  upd({scoringModal:{pid}});
+  setTimeout(()=>{
+    const inp=document.getElementById('score-inp');
+    if(inp){inp.focus();inp.select();}
+  },50);
+}
+function doToggleNA(pid) {
+  const cur=S.roundInputs[pid];
+  if(cur==='NA'){
+    const {[pid]:_,...rest}=S.roundInputs;
+    upd({roundInputs:rest});
+  } else {
+    upd({roundInputs:{...S.roundInputs,[pid]:'NA'}});
+  }
+}
+function doSaveScore(pid) {
+  if(!pid) return;
+  const isNA=S.roundInputs[pid]==='NA';
+  if(isNA){
+    upd({scoringModal:null});
+    return;
+  }
+  const inp=document.getElementById('score-inp');
+  const val=inp?inp.value.trim():'';
+  if(val===''){alert('Enter a score or mark N/A.');return;}
+  upd({roundInputs:{...S.roundInputs,[pid]:parseInt(val)||0}, scoringModal:null});
+}
+function doSubmitRound(gameid) {
+  const game=getGame(gameid);
+  if(!game) return;
+  const round={};
+  game.participantIds.forEach(pid=>{
+    const v=S.roundInputs[pid];
+    round[pid]=v==='NA'?'NA':(Number(v)||0);
+  });
+  game.rounds.push(round);
+  upd({roundInputs:{}});
+}
+function doCompleteGame(gameid) {
+  const game=getGame(gameid);
+  if(!game) return;
+  game.winnerId=gameWinnerId(game);
+  game.completed=true;
+  upd({roundInputs:{}});
+}
+function doEndGame(gameid) {
+  if(!confirm('End this game early? The player with the most points wins.')) return;
+  doCompleteGame(gameid);
+}
+
+// =========================================================
+// INIT
+// =========================================================
+render();
+</script>
+</body>
+</html>
