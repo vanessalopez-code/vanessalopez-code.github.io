@@ -529,6 +529,21 @@ function stageCurrentRound(stageId) {
   return Math.max(...groups.map(g => g.round || 1));
 }
 
+// Returns how many complete game cycles have finished in a stage.
+// Shuffle mode: counts completed reshuffle rounds.
+// Keep Group mode: counts completed games at each (fixed) table.
+function stageRoundsComplete(stageId) {
+  const active = activeGroupsForStage(stageId);
+  if (!active.length) return 0;
+  if (S.settings.shuffleAfterGame) {
+    const curRound = stageCurrentRound(stageId);
+    const allDone = active.every(g => completedGamesForGroup(g.id).length > 0);
+    return allDone ? curRound : curRound - 1;
+  } else {
+    return Math.min(...active.map(g => completedGamesForGroup(g.id).length));
+  }
+}
+
 function avatarBg(pid) {
   const photo = photoCache[pid];
   if (!photo) return '';
@@ -801,8 +816,8 @@ function buildBrackets() {
   const gpsB = S.settings.gamesPerStage || 1;
   S.stages.forEach(stage => {
     const groups = activeGroupsForStage(stage.id);
-    const curRoundB = stageCurrentRound(stage.id);
-    const roundLabel = gpsB > 1 ? ` · Round ${curRoundB}/${gpsB}` : '';
+    const rdoneB = stageRoundsComplete(stage.id);
+    const roundLabel = gpsB > 1 ? ` · Game ${rdoneB + 1}/${gpsB}` : '';
     html += `<div class="stage-block">
       <div class="stage-label">${escH(stage.name)}${roundLabel} ${stage.status==='complete'?'<span class="badge badge-green">Complete</span>':''}</div>
       ${groups.length===0?`<div style="padding:0 16px;color:var(--muted);font-size:13px;">No groups yet</div>`:''}
@@ -934,8 +949,8 @@ function buildScorecard() {
   } else {
     const stage = getStage(group.stageId);
     const gps = S.settings.gamesPerStage || 1;
-    const curRound = stageCurrentRound(group.stageId);
-    const roundInfo = gps > 1 ? ` · Game ${curRound}/${gps}` : '';
+    const rdone = stageRoundsComplete(group.stageId);
+    const roundInfo = gps > 1 ? ` · Game ${Math.min(rdone + 1, gps)}/${gps}` : '';
     html += `<div style="padding:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span style="font-size:13px;color:var(--muted)">${escH(stage?.name||'')}${roundInfo} · ${group.participantIds.length} players</span>
       <button class="btn btn-primary btn-sm" data-a="startGame" data-gid="${gid}">▶ New Game</button>
@@ -973,8 +988,8 @@ function buildActiveScorecardView(game) {
   // Round header
   const gpsAct = S.settings.gamesPerStage || 1;
   const group4sc = getGroup(game.groupId);
-  const stgRnd = group4sc ? stageCurrentRound(group4sc.stageId) : 1;
-  const stageRoundLabel = gpsAct > 1 ? ` · Stage Game ${stgRnd}/${gpsAct}` : '';
+  const rdoneAct = group4sc ? stageRoundsComplete(group4sc.stageId) : 0;
+  const stageRoundLabel = gpsAct > 1 ? ` · Stage Game ${Math.min(rdoneAct + 1, gpsAct)}/${gpsAct}` : '';
   html += `<div class="sc-round-info" style="padding:14px 16px 4px">
     <div class="sc-round-label">${over?'Game Over':'Round '+currentRoundNum}</div>
     <div class="sc-target">Target: ${target} pts${stageRoundLabel}</div>
@@ -1252,7 +1267,7 @@ function buildAdminSettings() {
     <div class="field">
       <div class="label">Games Per Stage</div>
       <div class="seg">${[1,2,3,4,5].map(n=>`<button class="seg-btn ${(s.gamesPerStage||1)===n?'active':''}" data-a="setSetting" data-k="gamesPerStage" data-v="${n}">${n}</button>`).join('')}</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:2px">Players play this many games per stage before advancement. Groups shuffle between games automatically.</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px">Players play this many games per stage before advancement is calculated. Pair with "After Each Game" to control whether groups shuffle between games.</div>
     </div>
     <div class="field">
       <div class="label">Points to Win a Game</div>
@@ -1419,9 +1434,8 @@ function buildAdminStages() {
       const ua = unassigned(stage.id);
       const mode = stageAssignmentMode(stage.id);
       const gpsA = S.settings.gamesPerStage || 1;
-      const curRoundA = stageCurrentRound(stage.id);
-      const allActiveDone = stageGroups.length > 0 && stageGroups.every(g => completedGamesForGroup(g.id).length > 0);
-      const stageFullyDone = gpsA > 1 && curRoundA >= gpsA && allActiveDone;
+      const roundsDoneA = stageRoundsComplete(stage.id);
+      const stageFullyDone = gpsA > 1 && roundsDoneA >= gpsA;
       const isManual = mode === 'manual';
       const isFirstStage = stageIdx === 0;
       const isFinals = stageIdx === lastIdx && lastIdx > 0;
@@ -1437,7 +1451,7 @@ function buildAdminStages() {
         <div class="card-header">
           <div style="flex:1">
             <div class="card-title">${escH(stage.name)}</div>
-            ${gpsA > 1 ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${stageFullyDone?'✓ All games played — ready to advance':`Game ${curRoundA} of ${gpsA}`}</div>` : ''}
+            ${gpsA > 1 ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${stageFullyDone?'✓ All games played — ready to advance':`Game ${roundsDoneA + 1} of ${gpsA}`}</div>` : ''}
           </div>
           <div class="btn-row">
             ${stage.status==='active'?`<button class="btn btn-ghost btn-xs" data-a="addGroup" data-sid="${stage.id}">+ Group</button>`:''}
@@ -1474,7 +1488,7 @@ function buildAdminStages() {
         }).join('')}
 
         ${stageGroups.length===0?`<div style="padding:12px 14px;font-size:13px;color:var(--muted)">No groups yet. ${isManual?'Add groups and assign players.':isFinals?'Use Generate Finals to auto-create the finals group.':isFirstStage?'Use Randomize to auto-assign players.':'Use Auto-assign to pull advancers from the previous stage.'}</div>`:''}
-        ${stageFullyDone?`<div style="padding:8px 14px;font-size:12px;color:var(--green);border-top:1px solid var(--border);font-weight:600">All ${gpsA} games played. Mark this stage complete to advance players.</div>`:isManual&&ua.length>0&&stageGroups.length>0?`<div style="padding:8px 14px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)">${ua.length} player${ua.length!==1?'s':''} unassigned</div>`:''}
+        ${stageFullyDone?`<div style="padding:8px 14px;font-size:12px;color:var(--green);border-top:1px solid var(--border);font-weight:600">All ${gpsA} game${gpsA!==1?'s':''} played. Mark this stage complete to advance players.</div>`:isManual&&ua.length>0&&stageGroups.length>0?`<div style="padding:8px 14px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)">${ua.length} player${ua.length!==1?'s':''} unassigned</div>`:''}
 
         <div style="border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap">
           ${stage.status==='active'?`<button class="btn btn-ghost btn-xs" data-a="markStageComplete" data-id="${stage.id}">Mark Complete</button>`:''}
@@ -1895,9 +1909,9 @@ function doCompleteGame(gameid) {
   game.winnerId=gameWinnerId(game);
   game.completed=true;
 
-  // When gamesPerStage > 1, check if all active groups in the stage are done — if so, create next round
+  // When shuffleAfterGame + gamesPerStage > 1: if all active groups in the stage are done, create next round
   const gamesPerStage = S.settings.gamesPerStage || 1;
-  if (gamesPerStage > 1) {
+  if (gamesPerStage > 1 && S.settings.shuffleAfterGame) {
     const group = getGroup(game.groupId);
     if (group) {
       const stageId = group.stageId;
