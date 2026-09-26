@@ -882,11 +882,10 @@ function buildGroups() {
   stageGroups.forEach(group => {
     const activeGame = activeGameForGroup(group.id);
     const doneGames = completedGamesForGroup(group.id);
-    const game = activeGame || doneGames.slice(-1)[0] || null;
-    const cum = game ? cumulative(game) : {};
     const gameOver = activeGame ? gameIsOver(activeGame) : false;
     const showCurrentRound = !!activeGame && !gameOver;
     const status = groupStatus(group.id, selectedSid);
+    const currentRoundNum = activeGame ? activeGame.rounds.length + 1 : 1;
 
     const statusBadge = status === 'pending'
       ? `<span class="badge badge-muted">Not Started</span>`
@@ -894,101 +893,114 @@ function buildGroups() {
       ? `<span class="badge badge-green">✓ Done</span>`
       : `<span class="badge badge-blue">● Active</span>`;
 
-    const numRounds = game ? game.rounds.length : 0;
-    const currentRoundNum = game ? game.rounds.length + 1 : 1;
-
     html += `<div class="card" style="padding:0;overflow:hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;border-bottom:1px solid var(--border)">
         <div style="font-family:'Nunito',sans-serif;font-size:14px;font-weight:700">${escH(group.name)}</div>
         ${statusBadge}
       </div>`;
 
-    if (!game && status === 'pending') {
-      html += `<div style="padding:12px 14px">
-        <button class="btn btn-primary btn-sm" data-a="startGroupGame" data-gid="${group.id}">▶ Start Game</button>
-      </div>`;
-    } else if (game) {
-      // Score table
-      html += `<div class="sc-table-wrap"><table class="sc-table" style="width:100%;table-layout:fixed">
+    // Helper: render a game's score table (active or completed)
+    const renderGroupGameTable = (g, opts={}) => {
+      const {isCurrent=false, showCurrent=false, curRoundNum=1} = opts;
+      const gcum = cumulative(g);
+      const nRounds = g.rounds.length;
+      let t = `<div class="sc-table-wrap"><table class="sc-table" style="width:100%;table-layout:fixed">
         <colgroup>
           <col style="width:auto">
-          ${Array.from({length: numRounds}, () => '<col style="width:40px">').join('')}
-          ${showCurrentRound ? '<col style="width:52px">' : ''}
+          ${Array.from({length: nRounds}, () => '<col style="width:40px">').join('')}
+          ${showCurrent ? '<col style="width:52px">' : ''}
           <col style="width:46px">
         </colgroup>
         <thead><tr>
           <th style="text-align:left;padding:5px 14px;font-size:11px">Player</th>
-          ${Array.from({length: numRounds}, (_,i) => `<th style="font-size:11px">R${i+1}</th>`).join('')}
-          ${showCurrentRound ? `<th style="font-size:11px;color:var(--accent)">R${currentRoundNum}</th>` : ''}
+          ${Array.from({length: nRounds}, (_,i) => `<th style="font-size:11px">R${i+1}</th>`).join('')}
+          ${showCurrent ? `<th style="font-size:11px;color:var(--accent)">R${curRoundNum}</th>` : ''}
           <th style="font-size:11px">Total</th>
-        </tr></thead>
-        <tbody>`;
-
+        </tr></thead><tbody>`;
       group.participantIds.forEach(pid => {
         const p = getPart(pid);
-        const sc = cum[pid] || [];
+        const sc = gcum[pid] || [];
         const total = sc.length ? sc[sc.length-1] : 0;
-        const isWinner = game.completed && game.winnerId === pid;
-
-        html += `<tr>
+        const isWinner = g.completed && g.winnerId === pid;
+        t += `<tr>
           <td style="padding:5px 14px;font-size:13px;${isWinner?'font-weight:700;color:var(--gold)':''}">${escH(shortName(p?.name||'?'))}${isWinner?' 🏆':''}</td>`;
-
-        // Past rounds
-        (game.rounds||[]).forEach((round, ri) => {
+        (g.rounds||[]).forEach((round, ri) => {
           const v = round[pid];
-          const canEdit = !game.completed;
+          const canEdit = isCurrent && !g.completed;
           const editAttrs = canEdit ? ` data-a="editRoundScore" data-gid="${group.id}" data-pid="${pid}" data-ri="${ri}" style="cursor:pointer"` : '';
           if (v === 'NA') {
-            html += `<td style="text-align:center;font-size:11px;color:var(--muted)"${editAttrs}>—</td>`;
+            t += `<td style="text-align:center;font-size:11px;color:var(--muted)"${editAttrs}>—</td>`;
           } else {
             const n = Number(v) || 0;
-            const rt = (sc)[ri] !== undefined ? sc[ri] : 0;
-            html += `<td style="text-align:center;font-size:11px" title="Running: ${rt}"${editAttrs}><span class="${n>=0?'pos':'neg'}">${n>=0?'+':''}${n}</span></td>`;
+            const rt = sc[ri] !== undefined ? sc[ri] : 0;
+            t += `<td style="text-align:center;font-size:11px" title="Running: ${rt}"${editAttrs}><span class="${n>=0?'pos':'neg'}">${n>=0?'+':''}${n}</span></td>`;
           }
         });
-
-        // Current round input cell
-        if (showCurrentRound) {
+        if (showCurrent) {
           const inp = S.roundInputs[pid];
           const hasVal = inp !== undefined && inp !== '';
           const isNA = inp === 'NA';
-          html += `<td style="text-align:center;padding:3px 2px">
+          t += `<td style="text-align:center;padding:3px 2px">
             <button class="btn btn-xs ${hasVal?'btn-ghost':'btn-primary'}"
               data-a="enterGroupScore" data-gid="${group.id}" data-pid="${pid}"
               style="min-width:34px;padding:3px 4px;font-size:11px">
               ${isNA ? '—' : hasVal ? `${Number(inp)>=0?'+':''}${inp}` : '+'}
-            </button>
-          </td>`;
+            </button></td>`;
         }
-
-        // Total
-        html += `<td style="text-align:center;font-weight:700;font-size:12px" class="${total>=0?'pos':'neg'}">${total}</td>`;
-        html += `</tr>`;
+        t += `<td style="text-align:center;font-weight:700;font-size:12px" class="${total>=0?'pos':'neg'}">${total}</td></tr>`;
       });
+      t += `</tbody></table></div>`;
+      return t;
+    };
 
-      html += `</tbody></table></div>`;
-
-      // Game actions
-      if (showCurrentRound) {
-        const allHaveInput = group.participantIds.every(pid => {
-          const inp = S.roundInputs[pid];
-          return inp !== undefined && inp !== '';
-        });
-        if (allHaveInput) {
-          html += `<div style="padding:8px 14px 12px">
-            <button class="btn btn-primary btn-full" data-a="submitRound" data-gid="${activeGame.id}">
-              Submit Round ${currentRoundNum}
-            </button>
+    if (status === 'pending' && !activeGame && !doneGames.length) {
+      html += `<div style="padding:12px 14px">
+        <button class="btn btn-primary btn-sm" data-a="startGroupGame" data-gid="${group.id}">▶ Start Game</button>
+      </div>`;
+    } else {
+      // Active game (current round entry)
+      if (activeGame) {
+        html += renderGroupGameTable(activeGame, {isCurrent:true, showCurrent:showCurrentRound, curRoundNum});
+        if (showCurrentRound) {
+          const allHaveInput = group.participantIds.every(pid => {
+            const inp = S.roundInputs[pid];
+            return inp !== undefined && inp !== '';
+          });
+          if (allHaveInput) {
+            html += `<div style="padding:8px 14px 12px">
+              <button class="btn btn-primary btn-full" data-a="submitRound" data-gid="${activeGame.id}">
+                Submit Round ${currentRoundNum}
+              </button>
+            </div>`;
+          }
+        } else if (gameOver) {
+          const wid = gameWinnerId(activeGame);
+          const wp = getPart(wid);
+          html += `<div style="padding:8px 14px 12px;display:flex;flex-direction:column;gap:8px">
+            <div class="sc-winner-banner">🏆 ${escH(wp?.name||'?')} wins this game!</div>
+            <button class="btn btn-gold btn-full" data-a="completeGame" data-gid="${activeGame.id}">Save &amp; Complete Game</button>
           </div>`;
         }
-      } else if (gameOver) {
-        const wid = gameWinnerId(activeGame);
-        const wp = getPart(wid);
-        html += `<div style="padding:8px 14px 12px;display:flex;flex-direction:column;gap:8px">
-          <div class="sc-winner-banner">🏆 ${escH(wp?.name||'?')} wins this game!</div>
-          <button class="btn btn-gold btn-full" data-a="completeGame" data-gid="${activeGame.id}">Save &amp; Complete Game</button>
-        </div>`;
-      } else if (!activeGame && status !== 'final') {
+      }
+
+      // Completed game history — show ALL past games
+      if (doneGames.length) {
+        doneGames.forEach((dg, gi) => {
+          const winner = getPart(dg.winnerId);
+          const showGameLabel = doneGames.length > 1 || !!activeGame;
+          if (showGameLabel || !activeGame) {
+            const labelTxt = showGameLabel ? `Game ${gi+1}` : 'Completed Game';
+            html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:${activeGame?'8px':'4px'} 14px 4px;${activeGame?'border-top:1px solid var(--border)':''}">
+              <span style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase">${labelTxt}</span>
+              ${winner ? `<span style="font-size:11px;color:var(--gold);font-weight:700">🏆 ${escH(shortName(winner.name))}</span>` : ''}
+            </div>`;
+          }
+          html += renderGroupGameTable(dg, {isCurrent:false, showCurrent:false});
+        });
+      }
+
+      // Start Next Game button
+      if (!activeGame && status !== 'final') {
         html += `<div style="padding:8px 14px 12px">
           <button class="btn btn-primary btn-sm" data-a="startGroupGame" data-gid="${group.id}">▶ Start Next Game</button>
         </div>`;
