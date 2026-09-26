@@ -936,12 +936,14 @@ function buildGroups() {
         // Past rounds
         (game.rounds||[]).forEach((round, ri) => {
           const v = round[pid];
+          const canEdit = !game.completed;
+          const editAttrs = canEdit ? ` data-a="editRoundScore" data-gid="${group.id}" data-pid="${pid}" data-ri="${ri}" style="cursor:pointer"` : '';
           if (v === 'NA') {
-            html += `<td style="text-align:center;font-size:11px;color:var(--muted)">—</td>`;
+            html += `<td style="text-align:center;font-size:11px;color:var(--muted)"${editAttrs}>—</td>`;
           } else {
             const n = Number(v) || 0;
             const rt = (sc)[ri] !== undefined ? sc[ri] : 0;
-            html += `<td style="text-align:center;font-size:11px" title="Running: ${rt}"><span class="${n>=0?'pos':'neg'}">${n>=0?'+':''}${n}</span></td>`;
+            html += `<td style="text-align:center;font-size:11px" title="Running: ${rt}"${editAttrs}><span class="${n>=0?'pos':'neg'}">${n>=0?'+':''}${n}</span></td>`;
           }
         });
 
@@ -1345,30 +1347,44 @@ function buildCompletedGameSummary(game, num) {
 
 function buildScoreModal() {
   const pid = S.scoringModal.pid;
+  const editRound = S.scoringModal.editRound; // undefined = current round, number = editing past round
   const p = getPart(pid);
   const col = p?.collectionId ? getCol(p.collectionId) : null;
   const game = activeGameForGroup(S.activeGroupId);
   const cum = game ? cumulative(game) : {};
   const sc = cum[pid]||[];
-  const total = sc.length ? sc[sc.length-1] : 0;
 
-  const curVal = S.roundInputs[pid];
-  const isNA = curVal === 'NA';
+  let curVal, isNA, total, roundLabel;
+  if (editRound !== undefined && game) {
+    // Use roundInputs[pid] since doOpenEditScoreModal pre-seeds it
+    curVal = S.roundInputs[pid];
+    isNA = curVal === 'NA';
+    // Running total up to the round before this one
+    const prevTotal = editRound > 0 ? ((cum[pid]||[])[editRound-1] || 0) : 0;
+    total = prevTotal;
+    roundLabel = `Round ${editRound + 1}`;
+  } else {
+    curVal = S.roundInputs[pid];
+    isNA = curVal === 'NA';
+    total = sc.length ? sc[sc.length-1] : 0;
+    roundLabel = null;
+  }
 
   const smBg = avatarBg(pid);
   const smAvStyle = smBg ? smBg : (col ? `background:${col.color}` : '');
   return `<div class="overlay" data-a="closeModal">
     <div class="sheet">
       <div class="sheet-handle"></div>
+      ${roundLabel ? `<div style="text-align:center;font-size:12px;font-weight:700;color:var(--accent);padding:4px 0 0;letter-spacing:0.05em">Editing ${roundLabel}</div>` : ''}
       <div class="sheet-player">
         <div class="sheet-avatar" style="${smAvStyle}">
           ${smBg?'':escH(initials(p?.name||'?'))}
         </div>
         <div class="sheet-name">${escH(p?.name||'?')}</div>
-        <div class="sheet-total">Running total: <strong class="${total>=0?'pos':'neg'}">${total}</strong></div>
+        <div class="sheet-total">${roundLabel ? 'Total before this round' : 'Running total'}: <strong class="${total>=0?'pos':'neg'}">${total}</strong></div>
         <button class="btn btn-ghost btn-xs" data-a="openPhotoCrop" data-pid="${pid}" style="margin-top:6px">📷 ${smBg?'Change':'Add'} Photo</button>
       </div>
-      <input type="number" class="score-input-xl" id="score-inp" value="${isNA?'':curVal||''}"
+      <input type="number" class="score-input-xl" id="score-inp" value="${isNA?'':(curVal!==''&&curVal!==undefined?curVal:'')}"
         placeholder="Score" ${isNA?'disabled':''}>
       <div class="na-toggle ${isNA?'active':''}" data-a="toggleNA" data-pid="${pid}">
         ${isNA?'✓ ':''} N/A — Player sat out this round
@@ -1869,6 +1885,7 @@ function onClick(e) {
   else if (a==='startGame') doStartGame(gid);
   else if (a==='startGroupGame') { S.activeGroupId = gid; doStartGame(gid); }
   else if (a==='enterGroupScore') { S.activeGroupId = gid; doOpenScoreModal(pid); }
+  else if (a==='editRoundScore') { const ri=parseInt(el.dataset.ri); S.activeGroupId = gid; doOpenEditScoreModal(pid, ri); }
   else if (a==='openScoreModal') doOpenScoreModal(pid);
   else if (a==='closeModal') { if (!e.target.closest('.sheet')) upd({scoringModal:null}); }
   else if (a==='toggleNA') doToggleNA(pid);
@@ -2155,6 +2172,17 @@ function doOpenScoreModal(pid) {
     if(inp){inp.focus();inp.select();}
   },50);
 }
+function doOpenEditScoreModal(pid, roundIdx) {
+  const game = activeGameForGroup(S.activeGroupId);
+  const existing = game?.rounds[roundIdx]?.[pid];
+  // Pre-seed roundInputs so the N/A toggle has a starting state
+  const seed = existing === 'NA' ? 'NA' : (existing !== undefined ? existing : '');
+  upd({scoringModal:{pid, editRound: roundIdx}, roundInputs:{...S.roundInputs, [pid]: seed}});
+  setTimeout(()=>{
+    const inp=document.getElementById('score-inp');
+    if(inp){inp.focus();inp.select();}
+  },50);
+}
 function doToggleNA(pid) {
   const cur=S.roundInputs[pid];
   if(cur==='NA'){
@@ -2166,6 +2194,21 @@ function doToggleNA(pid) {
 }
 function doSaveScore(pid) {
   if(!pid) return;
+  const editRound = S.scoringModal?.editRound;
+
+  if (editRound !== undefined) {
+    // Editing a past round
+    const game = activeGameForGroup(S.activeGroupId);
+    if (!game || !game.rounds[editRound]) { upd({scoringModal:null}); return; }
+    const isNA = S.roundInputs[pid] === 'NA';
+    const inp = document.getElementById('score-inp');
+    const val = inp ? inp.value.trim() : '';
+    if (!isNA && val === '') { alert('Enter a score or mark N/A.'); return; }
+    game.rounds[editRound][pid] = isNA ? 'NA' : (parseInt(val) || 0);
+    upd({scoringModal: null});
+    return;
+  }
+
   const isNA=S.roundInputs[pid]==='NA';
   if(isNA){
     upd({scoringModal:null});
