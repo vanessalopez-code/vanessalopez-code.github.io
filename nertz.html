@@ -1369,7 +1369,7 @@ function buildScoreModal() {
         <button class="btn btn-ghost btn-xs" data-a="openPhotoCrop" data-pid="${pid}" style="margin-top:6px">📷 ${smBg?'Change':'Add'} Photo</button>
       </div>
       <input type="number" class="score-input-xl" id="score-inp" value="${isNA?'':curVal||''}"
-        placeholder="Score" inputmode="numeric" ${isNA?'disabled':''}>
+        placeholder="Score" ${isNA?'disabled':''}>
       <div class="na-toggle ${isNA?'active':''}" data-a="toggleNA" data-pid="${pid}">
         ${isNA?'✓ ':''} N/A — Player sat out this round
       </div>
