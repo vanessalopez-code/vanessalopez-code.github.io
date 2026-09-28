@@ -1606,15 +1606,16 @@ function playerRow(p) {
 }
 
 function stageAssignmentMode(stageId) {
-  const ss = getStageSettings(stageId);
-  if (ss.groupAssignment === 'random') return 'random';
-  if (ss.groupAssignment === 'manual') return 'manual';
-  // Fall back to positional logic
   const idx = S.stages.findIndex(s => s.id === stageId);
   const lastIdx = S.stages.length - 1;
-  if (idx <= 0 || S.stages.length === 1) return S.settings.firstStageAssignment || 'manual';
+  // Group Assignment setting only applies to stage 1; later stages use advancement logic
+  if (idx === 0) {
+    const ss = getStageSettings(stageId);
+    if (ss.groupAssignment === 'random') return 'random';
+    return 'manual';
+  }
   if (idx === lastIdx) return S.settings.finalsAssignment || 'auto';
-  return S.settings.laterStageAssignment || 'collection';
+  return 'collection';
 }
 
 function groupStatusBadge(status) {
@@ -1643,13 +1644,13 @@ function buildStageSettingsPanel(stage) {
       <div class="label" style="font-size:11px">Points to Win</div>
       <input type="number" class="input input-sm" value="${ss.pointsToWin}" data-a="setStageSettingNum" data-sid="${sid}" data-k="pointsToWin" inputmode="numeric" min="1">
     </div>
-    <div class="field">
+    ${S.stages.findIndex(s => s.id === sid) === 0 ? `<div class="field">
       <div class="label" style="font-size:11px">Group Assignment</div>
       <div class="seg">
         <button class="seg-btn ${ss.groupAssignment!=='random'?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="groupAssignment" data-v="manual">Manual</button>
         <button class="seg-btn ${ss.groupAssignment==='random'?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="groupAssignment" data-v="random">Random</button>
       </div>
-    </div>
+    </div>` : ''}
     <div class="field">
       <div class="label" style="font-size:11px">After Each Game</div>
       <div class="seg">
