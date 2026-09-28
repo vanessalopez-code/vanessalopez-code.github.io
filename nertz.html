@@ -856,6 +856,54 @@ function buildHome() {
   </div>`;
 }
 
+function renderGroupGameTable(g, group, opts) {
+  const isCurrent = opts && opts.isCurrent;
+  const showCurrent = opts && opts.showCurrent;
+  const curRoundNum = (opts && opts.curRoundNum) || 1;
+  const gcum = cumulative(g);
+  const nRounds = g.rounds.length;
+  let t = `<div class="sc-table-wrap"><table class="sc-table" style="width:100%;table-layout:fixed">
+    <colgroup>
+      <col style="width:auto">
+      ${Array.from({length: nRounds}, () => '<col style="width:40px">').join('')}
+      ${showCurrent ? '<col style="width:52px">' : ''}
+      <col style="width:46px">
+    </colgroup>
+    <thead><tr>
+      <th style="text-align:left;padding:5px 14px;font-size:11px">Player</th>
+      ${Array.from({length: nRounds}, (_,i) => `<th style="font-size:11px">R${i+1}</th>`).join('')}
+      ${showCurrent ? `<th style="font-size:11px;color:var(--accent)">R${curRoundNum}</th>` : ''}
+      <th style="font-size:11px">Total</th>
+    </tr></thead><tbody>`;
+  group.participantIds.forEach(function(pid) {
+    var p = getPart(pid);
+    var sc = gcum[pid] || [];
+    var total = sc.length ? sc[sc.length-1] : 0;
+    var isWinner = g.completed && g.winnerId === pid;
+    t += '<tr><td style="padding:5px 14px;font-size:13px;' + (isWinner ? 'font-weight:700;color:var(--gold)' : '') + '">' + escH(shortName(p ? p.name : '?')) + (isWinner ? ' 🏆' : '') + '</td>';
+    (g.rounds || []).forEach(function(round, ri) {
+      var v = round[pid];
+      var canEdit = isCurrent && !g.completed;
+      if (v === 'NA') {
+        t += '<td style="text-align:center;font-size:11px;color:var(--muted)' + (canEdit ? ';cursor:pointer' : '') + '"' + (canEdit ? ' data-a="editRoundScore" data-gid="' + group.id + '" data-pid="' + pid + '" data-ri="' + ri + '"' : '') + '>—</td>';
+      } else {
+        var n = Number(v) || 0;
+        var rt = sc[ri] !== undefined ? sc[ri] : 0;
+        t += '<td style="text-align:center;font-size:11px' + (canEdit ? ';cursor:pointer' : '') + '" title="Running: ' + rt + '"' + (canEdit ? ' data-a="editRoundScore" data-gid="' + group.id + '" data-pid="' + pid + '" data-ri="' + ri + '"' : '') + '><span class="' + (n >= 0 ? 'pos' : 'neg') + '">' + (n >= 0 ? '+' : '') + n + '</span></td>';
+      }
+    });
+    if (showCurrent) {
+      var inp = S.roundInputs[pid];
+      var hasVal = inp !== undefined && inp !== '';
+      var isNA = inp === 'NA';
+      t += '<td style="text-align:center;padding:3px 2px"><button class="btn btn-xs ' + (hasVal ? 'btn-ghost' : 'btn-primary') + '" data-a="enterGroupScore" data-gid="' + group.id + '" data-pid="' + pid + '" style="min-width:34px;padding:3px 4px;font-size:11px">' + (isNA ? '—' : hasVal ? ((Number(inp) >= 0 ? '+' : '') + inp) : '+') + '</button></td>';
+    }
+    t += '<td style="text-align:center;font-weight:700;font-size:12px" class="' + (total >= 0 ? 'pos' : 'neg') + '">' + total + '</td></tr>';
+  });
+  t += '</tbody></table></div>';
+  return t;
+}
+
 function buildGroups() {
   if (!S.stages.length) return `<div class="empty"><div class="empty-icon">🃏</div><p>No stages set up yet. Ask the admin to configure the tournament.</p></div>`;
 
@@ -899,60 +947,6 @@ function buildGroups() {
         ${statusBadge}
       </div>`;
 
-    // Helper: render a game's score table (active or completed)
-    const renderGroupGameTable = (g, opts={}) => {
-      const {isCurrent=false, showCurrent=false, curRoundNum=1} = opts;
-      const gcum = cumulative(g);
-      const nRounds = g.rounds.length;
-      let t = `<div class="sc-table-wrap"><table class="sc-table" style="width:100%;table-layout:fixed">
-        <colgroup>
-          <col style="width:auto">
-          ${Array.from({length: nRounds}, () => '<col style="width:40px">').join('')}
-          ${showCurrent ? '<col style="width:52px">' : ''}
-          <col style="width:46px">
-        </colgroup>
-        <thead><tr>
-          <th style="text-align:left;padding:5px 14px;font-size:11px">Player</th>
-          ${Array.from({length: nRounds}, (_,i) => `<th style="font-size:11px">R${i+1}</th>`).join('')}
-          ${showCurrent ? `<th style="font-size:11px;color:var(--accent)">R${curRoundNum}</th>` : ''}
-          <th style="font-size:11px">Total</th>
-        </tr></thead><tbody>`;
-      group.participantIds.forEach(pid => {
-        const p = getPart(pid);
-        const sc = gcum[pid] || [];
-        const total = sc.length ? sc[sc.length-1] : 0;
-        const isWinner = g.completed && g.winnerId === pid;
-        t += `<tr>
-          <td style="padding:5px 14px;font-size:13px;${isWinner?'font-weight:700;color:var(--gold)':''}">${escH(shortName(p?.name||'?'))}${isWinner?' 🏆':''}</td>`;
-        (g.rounds||[]).forEach((round, ri) => {
-          const v = round[pid];
-          const canEdit = isCurrent && !g.completed;
-          const editAttrs = canEdit ? ` data-a="editRoundScore" data-gid="${group.id}" data-pid="${pid}" data-ri="${ri}" style="cursor:pointer"` : '';
-          if (v === 'NA') {
-            t += `<td style="text-align:center;font-size:11px;color:var(--muted)"${editAttrs}>—</td>`;
-          } else {
-            const n = Number(v) || 0;
-            const rt = sc[ri] !== undefined ? sc[ri] : 0;
-            t += `<td style="text-align:center;font-size:11px" title="Running: ${rt}"${editAttrs}><span class="${n>=0?'pos':'neg'}">${n>=0?'+':''}${n}</span></td>`;
-          }
-        });
-        if (showCurrent) {
-          const inp = S.roundInputs[pid];
-          const hasVal = inp !== undefined && inp !== '';
-          const isNA = inp === 'NA';
-          t += `<td style="text-align:center;padding:3px 2px">
-            <button class="btn btn-xs ${hasVal?'btn-ghost':'btn-primary'}"
-              data-a="enterGroupScore" data-gid="${group.id}" data-pid="${pid}"
-              style="min-width:34px;padding:3px 4px;font-size:11px">
-              ${isNA ? '—' : hasVal ? `${Number(inp)>=0?'+':''}${inp}` : '+'}
-            </button></td>`;
-        }
-        t += `<td style="text-align:center;font-weight:700;font-size:12px" class="${total>=0?'pos':'neg'}">${total}</td></tr>`;
-      });
-      t += `</tbody></table></div>`;
-      return t;
-    };
-
     if (status === 'pending' && !activeGame && !doneGames.length) {
       html += `<div style="padding:12px 14px">
         <button class="btn btn-primary btn-sm" data-a="startGroupGame" data-gid="${group.id}">▶ Start Game</button>
@@ -960,7 +954,7 @@ function buildGroups() {
     } else {
       // Active game (current round entry)
       if (activeGame) {
-        html += renderGroupGameTable(activeGame, {isCurrent:true, showCurrent:showCurrentRound, curRoundNum});
+        html += renderGroupGameTable(activeGame, group, {isCurrent:true, showCurrent:showCurrentRound, curRoundNum:currentRoundNum});
         if (showCurrentRound) {
           const allHaveInput = group.participantIds.every(pid => {
             const inp = S.roundInputs[pid];
@@ -995,7 +989,7 @@ function buildGroups() {
               ${winner ? `<span style="font-size:11px;color:var(--gold);font-weight:700">🏆 ${escH(shortName(winner.name))}</span>` : ''}
             </div>`;
           }
-          html += renderGroupGameTable(dg, {isCurrent:false, showCurrent:false});
+          html += renderGroupGameTable(dg, group, {isCurrent:false, showCurrent:false});
         });
       }
 
