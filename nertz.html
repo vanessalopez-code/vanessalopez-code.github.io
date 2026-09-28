@@ -1606,11 +1606,15 @@ function playerRow(p) {
 }
 
 function stageAssignmentMode(stageId) {
+  const ss = getStageSettings(stageId);
+  if (ss.groupAssignment === 'random') return 'random';
+  if (ss.groupAssignment === 'manual') return 'manual';
+  // Fall back to positional logic
   const idx = S.stages.findIndex(s => s.id === stageId);
   const lastIdx = S.stages.length - 1;
-  if (idx <= 0 || S.stages.length === 1) return S.settings.firstStageAssignment;
-  if (idx === lastIdx) return S.settings.finalsAssignment;
-  return S.settings.laterStageAssignment;
+  if (idx <= 0 || S.stages.length === 1) return S.settings.firstStageAssignment || 'manual';
+  if (idx === lastIdx) return S.settings.finalsAssignment || 'auto';
+  return S.settings.laterStageAssignment || 'collection';
 }
 
 function groupStatusBadge(status) {
@@ -1721,9 +1725,11 @@ function buildAdminStages() {
             : `<span class="badge badge-muted">Not Started</span>`;
 
       const assignBtn = stage.status !== 'complete' ? (
-        isFirstStage && mode === 'random' ? (stageHasGames
-          ? `<button class="btn btn-ghost btn-xs" disabled title="Scores entered — cannot re-randomize" style="opacity:0.45;cursor:not-allowed">🔀 Randomize</button>`
-          : `<button class="btn btn-ghost btn-xs" data-a="randomizeStage" data-sid="${stage.id}">🔀 Randomize</button>`) :
+        mode === 'random' ? (stageHasGames
+          ? `<button class="btn btn-ghost btn-xs" disabled title="Scores entered — cannot re-shuffle" style="opacity:0.45;cursor:not-allowed">🔀 Re-shuffle</button>`
+          : stageGroups.length > 0
+            ? `<button class="btn btn-ghost btn-xs" data-a="randomizeStage" data-sid="${stage.id}">🔀 Re-shuffle</button>`
+            : `<button class="btn btn-primary btn-sm" data-a="randomizeStage" data-sid="${stage.id}">🔀 Randomize Groups</button>`) :
         isLaterStage && mode === 'collection' ? `<button class="btn btn-ghost btn-xs" data-a="autoAssignFromPrev" data-sid="${stage.id}">↑ Auto-assign</button>` :
         isFinals && mode === 'auto' ? `<button class="btn btn-ghost btn-xs" data-a="generateFinals" data-sid="${stage.id}">🏆 Generate Finals</button>` : ''
       ) : '';
@@ -1735,13 +1741,13 @@ function buildAdminStages() {
             ${gpsA > 1 ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${gpsA} games required per group</div>` : ''}
           </div>
           <div class="btn-row">
-            ${stage.status !== 'complete' ? `<button class="btn btn-ghost btn-xs" data-a="addGroup" data-sid="${stage.id}">+ Group</button>` : ''}
+            ${stage.status !== 'complete' && mode !== 'random' ? `<button class="btn btn-ghost btn-xs" data-a="addGroup" data-sid="${stage.id}">+ Group</button>` : ''}
             ${assignBtn}
             ${stageBadge}
           </div>
         </div>
 
-        ${stageGroups.length === 0 ? `<div style="padding:12px 14px;font-size:13px;color:var(--muted)">${isManual?'Add groups and assign players manually.':isFinals?'Use Generate Finals to auto-create the finals group.':isFirstStage?'Use Randomize to auto-assign all players into groups.':'Use Auto-assign to pull advancers from the previous stage.'}</div>` : ''}
+        ${stageGroups.length === 0 ? `<div style="padding:12px 14px;font-size:13px;color:var(--muted)">${mode==='random'?'Tap Randomize Groups to auto-assign all players.':isManual?'Add groups and assign players manually.':isFinals?'Use Generate Finals to auto-create the finals group.':'Use Auto-assign to pull advancers from the previous stage.'}</div>` : ''}
 
         ${stageGroups.map(group => {
           const gStatus = groupStatus(group.id, stage.id);
@@ -1773,6 +1779,7 @@ function buildAdminStages() {
         }).join('')}
 
         ${isManual && ua.length > 0 && stageGroups.length > 0 ? `<div style="padding:8px 14px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)">${ua.length} player${ua.length!==1?'s':''} not yet assigned to a group</div>` : ''}
+        ${mode === 'random' && stageGroups.length > 0 && !stageHasGames ? `<div style="padding:8px 14px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)">Tap Re-shuffle to generate a different grouping.</div>` : ''}
         ${stageDone && stage.status !== 'complete' ? `<div style="padding:10px 14px;font-size:13px;color:var(--green);border-top:1px solid var(--border);font-weight:600">✓ All games complete. ${isFinals ? 'Declare the winner!' : 'Ready to advance players to the next stage.'}</div>` : ''}
 
         <div style="border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap">
