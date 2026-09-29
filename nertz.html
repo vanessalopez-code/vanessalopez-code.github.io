@@ -576,6 +576,17 @@ function avatarBg(pid) {
 
 function loadPhotos(tid) {
   if (!tid || !S.participants.length) return;
+  // Immediately show photos from localStorage library as fallback
+  const lib = loadLibraryLS();
+  let localHit = false;
+  S.participants.forEach(p => {
+    if (!photoCache[p.id]) {
+      const key = playerLibraryKey(p.name);
+      if (lib[key]?.photo) { photoCache[p.id] = lib[key].photo; localHit = true; }
+    }
+  });
+  if (localHit) render();
+  // Then fetch from Firestore — overwrites with the definitive saved version
   const promises = S.participants.map(p =>
     db.collection('playerPhotos').doc(tid + '_' + p.id).get()
   );
@@ -601,11 +612,9 @@ function savePhotoToFirestore(pid, dataUrl) {
   if (p) {
     const key = playerLibraryKey(p.name);
     const lib = loadLibraryLS();
-    if (lib[key]) {
-      lib[key] = { ...lib[key], photo: dataUrl, updatedAt: Date.now() };
-      saveLibraryLS(lib);
-      refreshPlayerLibrary();
-    }
+    lib[key] = { ...lib[key], name: p.name, photo: dataUrl, updatedAt: Date.now() };
+    saveLibraryLS(lib);
+    refreshPlayerLibrary();
   }
 }
 
