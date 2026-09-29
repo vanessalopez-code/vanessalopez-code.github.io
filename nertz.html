@@ -361,7 +361,7 @@ function refreshPlayerLibrary() {
 let photoCache = {};
 let openStageSettingsPanels = new Set();
 
-const UI_FIELDS = new Set(['mode','screen','adminTab','stageFilter','playerStageFilter','activeGroupId','scoringModal','adminAuthModal','pickerCreating','roundInputs','lbSort']);
+const UI_FIELDS = new Set(['mode','screen','adminTab','stageFilter','playerStageFilter','activeGroupId','scoringModal','adminAuthModal','pickerCreating','roundInputs','lbSort','libraryEditModal']);
 
 function save() {
   if (!S.tournamentId) return;
@@ -652,8 +652,8 @@ function savePhotoToFirestore(pid, dataUrl) {
   }
 }
 
-function openFilePicker(pid) {
-  if (!pid) return;
+function openFilePicker(pid, libraryKey) {
+  if (!pid && !libraryKey) return;
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
   document.body.appendChild(inp);
@@ -665,7 +665,9 @@ function openFilePicker(pid) {
     reader.onload = ev => {
       const img = new Image();
       img.onload = () => {
-        cropState = { playerId: pid, img, offsetX: 0, offsetY: 0, zoom: 1 };
+        cropState = libraryKey
+          ? { libraryKey, img, offsetX: 0, offsetY: 0, zoom: 1 }
+          : { playerId: pid, img, offsetX: 0, offsetY: 0, zoom: 1 };
         render();
         setTimeout(() => { drawCropCanvas(); setupCropDrag(); }, 50);
       };
@@ -731,11 +733,48 @@ function doApplyPhotoCrop() {
   const imgH = img.naturalHeight * baseScale * scale200;
   ctx.drawImage(img, 100 + cropState.offsetX*scale200 - imgW/2, 100 + cropState.offsetY*scale200 - imgH/2, imgW, imgH);
   const dataUrl = out.toDataURL('image/jpeg', 0.82);
-  const pid = cropState.playerId;
-  cropState = null;
-  photoCache[pid] = dataUrl;
-  savePhotoToFirestore(pid, dataUrl);
-  render();
+  if (cropState.libraryKey) {
+    const key = cropState.libraryKey;
+    cropState = null;
+    const lib = loadLibraryLS();
+    if (lib[key]) { lib[key] = { ...lib[key], photo: dataUrl, updatedAt: Date.now() }; saveLibraryLS(lib); refreshPlayerLibrary(); }
+    render();
+  } else {
+    const pid = cropState.playerId;
+    cropState = null;
+    photoCache[pid] = dataUrl;
+    savePhotoToFirestore(pid, dataUrl);
+    render();
+  }
+}
+
+function buildLibraryEditModal() {
+  const key = S.libraryEditModal;
+  const lp = playerLibrary.find(p => p.key === key);
+  if (!lp) return '';
+  const photo = lp.photo ? `background-image:url(${lp.photo});background-size:cover;background-position:center;color:transparent;` : '';
+  const ini = lp.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  return `<div class="overlay" style="z-index:300">
+    <div class="sheet" style="padding-bottom:calc(28px + var(--sb))">
+      <div class="sheet-handle"></div>
+      <div style="text-align:center;margin-bottom:16px">
+        <div class="sheet-name">Edit Player</div>
+      </div>
+      <div style="display:flex;justify-content:center;margin-bottom:6px">
+        <div class="bracket-avatar" data-a="changeLibraryPhoto" data-key="${escH(key)}"
+          style="${photo}width:72px;height:72px;font-size:24px;cursor:pointer;flex-shrink:0" title="Change photo">
+          ${photo?'':escH(ini)}
+        </div>
+      </div>
+      <div style="text-align:center;font-size:12px;color:var(--muted);margin-bottom:16px">Tap to change photo</div>
+      <div style="padding:0 16px;display:flex;flex-direction:column;gap:10px">
+        <input type="text" class="input" id="lib-name-inp" value="${escH(lp.name)}" placeholder="Player name">
+        <button class="btn btn-primary btn-full" data-a="saveLibraryPlayer" data-key="${escH(key)}">Save</button>
+        <button class="btn btn-full btn-sm" style="background:rgba(180,30,30,.12);border:1px solid rgba(180,30,30,.35);color:#e05555" data-a="deleteLibraryPlayer" data-key="${escH(key)}">🗑 Remove from Library</button>
+        <button class="btn btn-ghost btn-full" data-a="closeLibraryEdit">Cancel</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 function buildPhotoCropModal() {
@@ -781,6 +820,7 @@ function buildApp() {
   if (S.screen === 'picker') html = buildTournamentPicker();
   else if (S.mode === 'admin') html = buildAdmin();
   else html = buildPlayer();
+  if (S.libraryEditModal) html += buildLibraryEditModal();
   if (cropState) html += buildPhotoCropModal();
   return html;
 }
@@ -1607,11 +1647,16 @@ function buildAdminPlayers() {
             ${available.map(lp=>{
               const photo = lp.photo ? `background-image:url(${lp.photo});background-size:cover;background-position:center;color:transparent;` : '';
               const ini = lp.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-              return `<button data-a="addFromLibrary" data-key="${escH(lp.key)}" title="Add ${escH(lp.name)}"
-                style="display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;cursor:pointer;padding:4px">
-                <div class="bracket-avatar" style="${photo};pointer-events:none">${photo?'':escH(ini)}</div>
-                <div style="font-size:11px;color:var(--text);max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(lp.name.split(' ')[0])}</div>
-              </button>`;
+              return `<div style="position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:4px">
+                <button data-a="addFromLibrary" data-key="${escH(lp.key)}" title="Add ${escH(lp.name)}"
+                  style="display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;cursor:pointer;padding:4px 4px 0">
+                  <div class="bracket-avatar" style="${photo};pointer-events:none">${photo?'':escH(ini)}</div>
+                </button>
+                <div style="font-size:11px;color:var(--text);max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center">${escH(lp.name.split(' ')[0])}</div>
+                <button data-a="editLibraryPlayer" data-key="${escH(lp.key)}"
+                  style="position:absolute;top:0;right:0;width:18px;height:18px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1"
+                  title="Edit">✏</button>
+              </div>`;
             }).join('')}
           </div>
         </div>`;
@@ -1941,6 +1986,32 @@ function onClick(e) {
     }
     save(); render();
   }
+  else if (a==='editLibraryPlayer') { upd({ libraryEditModal: el.dataset.key }); }
+  else if (a==='closeLibraryEdit') { upd({ libraryEditModal: null }); }
+  else if (a==='changeLibraryPhoto') { openFilePicker(null, el.dataset.key); }
+  else if (a==='saveLibraryPlayer') {
+    const key = el.dataset.key;
+    const newName = document.getElementById('lib-name-inp')?.value.trim();
+    if (!newName) return;
+    const lib = loadLibraryLS();
+    if (!lib[key]) { upd({ libraryEditModal: null }); return; }
+    const newKey = playerLibraryKey(newName);
+    const entry = { ...lib[key], name: newName, updatedAt: Date.now() };
+    if (newKey !== key) { delete lib[key]; }
+    lib[newKey] = entry;
+    saveLibraryLS(lib);
+    refreshPlayerLibrary();
+    upd({ libraryEditModal: null });
+  }
+  else if (a==='deleteLibraryPlayer') {
+    const key = el.dataset.key;
+    if (!confirm('Remove this player from the library?')) return;
+    const lib = loadLibraryLS();
+    delete lib[key];
+    saveLibraryLS(lib);
+    refreshPlayerLibrary();
+    upd({ libraryEditModal: null });
+  }
   else if (a==='addStage') doAddStage();
   else if (a==='deleteStage') doDeleteStage(id);
   else if (a==='setTotalStages') doSetTotalStages(parseInt(v));
@@ -2004,7 +2075,7 @@ function onClick(e) {
   else if (a==='openPhotoCrop') openFilePicker(pid);
   else if (a==='cancelPhotoCrop') { cropState = null; render(); }
   else if (a==='applyPhotoCrop') doApplyPhotoCrop();
-  else if (a==='chooseNewPhoto') openFilePicker(cropState?.playerId);
+  else if (a==='chooseNewPhoto') openFilePicker(cropState?.playerId, cropState?.libraryKey);
   else if (a==='submitAdminAuth') doSubmitAdminAuth();
   else if (a==='closeAdminAuth') upd({adminAuthModal:false});
   else if (a==='createTournament') doCreateTournament();
