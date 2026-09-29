@@ -769,7 +769,8 @@ function buildLibraryEditModal() {
       <div style="text-align:center;font-size:12px;color:var(--muted);margin-bottom:16px">Tap to change photo</div>
       <div style="padding:0 16px;display:flex;flex-direction:column;gap:10px">
         <input type="text" class="input" id="lib-name-inp" value="${escH(lp.name)}" placeholder="Player name">
-        <button class="btn btn-primary btn-full" data-a="saveLibraryPlayer" data-key="${escH(key)}">Save</button>
+        <button class="btn btn-primary btn-full" data-a="saveLibraryPlayer" data-key="${escH(key)}">Save Changes</button>
+        <button class="btn btn-full" style="background:var(--surface2);border:1px solid var(--border)" data-a="addFromLibrary" data-key="${escH(key)}">+ Add to Tournament</button>
         <button class="btn btn-full btn-sm" style="background:rgba(180,30,30,.12);border:1px solid rgba(180,30,30,.35);color:#e05555" data-a="deleteLibraryPlayer" data-key="${escH(key)}">🗑 Remove from Library</button>
         <button class="btn btn-ghost btn-full" data-a="closeLibraryEdit">Cancel</button>
       </div>
@@ -1647,16 +1648,11 @@ function buildAdminPlayers() {
             ${available.map(lp=>{
               const photo = lp.photo ? `background-image:url(${lp.photo});background-size:cover;background-position:center;color:transparent;` : '';
               const ini = lp.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-              return `<div style="position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:4px">
-                <button data-a="addFromLibrary" data-key="${escH(lp.key)}" title="Add ${escH(lp.name)}"
-                  style="display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;cursor:pointer;padding:4px 4px 0">
-                  <div class="bracket-avatar" style="${photo};pointer-events:none">${photo?'':escH(ini)}</div>
-                </button>
-                <div style="font-size:11px;color:var(--text);max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center">${escH(lp.name.split(' ')[0])}</div>
-                <button data-a="editLibraryPlayer" data-key="${escH(lp.key)}"
-                  style="position:absolute;top:0;right:0;width:18px;height:18px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1"
-                  title="Edit">✏</button>
-              </div>`;
+              return `<button data-a="editLibraryPlayer" data-key="${escH(lp.key)}"
+                style="display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;cursor:pointer;padding:4px">
+                <div class="bracket-avatar" style="${photo};pointer-events:none">${photo?'':escH(ini)}</div>
+                <div style="font-size:11px;color:var(--text);max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(lp.name.split(' ')[0])}</div>
+              </button>`;
             }).join('')}
           </div>
         </div>`;
@@ -1984,6 +1980,7 @@ function onClick(e) {
       photoCache[newId] = lp.photo;
       savePhotoToFirestore(newId, lp.photo);
     }
+    S.libraryEditModal = null;
     save(); render();
   }
   else if (a==='editLibraryPlayer') { upd({ libraryEditModal: el.dataset.key }); }
