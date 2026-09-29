@@ -379,7 +379,7 @@ function subscribeToTournament(id) {
           settings: { ...DEF.settings, ...(data.settings||{}) },
           screen: 'home', mode: 'player', scoringModal: null, roundInputs: {}, adminAuthModal: false };
       }
-      setTimeout(() => { loadPhotos(id); backfillPlayerLibrary(); }, 0);
+      setTimeout(() => loadPhotos(id), 0);
     } else {
       S = { ...S, ...data, tournamentId: id, settings: { ...DEF.settings, ...(data.settings||{}) } };
     }
@@ -391,26 +391,6 @@ function playerLibraryKey(name) {
   return name.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
 }
 
-function backfillPlayerLibrary() {
-  if (!S.participants || !S.participants.length) return;
-  const existingKeys = new Set(playerLibrary.map(lp => lp.key));
-  S.participants.forEach(p => {
-    const key = playerLibraryKey(p.name);
-    const data = { name: p.name, updatedAt: Date.now() };
-    if (existingKeys.has(key)) {
-      // Already in library — sync photo if we have one cached
-      if (photoCache[p.id] && !playerLibrary.find(lp => lp.key === key)?.photo) {
-        db.collection('playerLibrary').doc(key)
-          .set({ photo: photoCache[p.id], updatedAt: Date.now() }, { merge: true })
-          .catch(() => {});
-      }
-    } else {
-      db.collection('playerLibrary').doc(key)
-        .set(data, { merge: true })
-        .catch(() => {});
-    }
-  });
-}
 
 function init() {
   document.getElementById('app').innerHTML = `
@@ -646,7 +626,7 @@ function loadPhotos(tid) {
         updated = true;
       }
     });
-    if (updated) { backfillPlayerLibrary(); render(); }
+    if (updated) render();
   }).catch(e => console.error('Photo load error:', e));
 }
 
