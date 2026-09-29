@@ -905,12 +905,69 @@ function navIconRules(size=24) {
 function rulesText(section) {
   return (S.rules && S.rules[section]) ? S.rules[section] : DEFAULT_RULES[section];
 }
-function rulesSection(label, section, accentColor) {
+function rulesSection(label, section, accentColor, extra='') {
   const text = rulesText(section).replace(/\n/g, '<br>');
   return `<div class="card" style="padding:18px 20px">
     <div style="font-size:13px;font-weight:800;color:${accentColor};letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">${label}</div>
+    ${extra}
     <div style="font-size:14px;color:var(--text);line-height:1.75">${text}</div>
   </div>`;
+}
+
+function buildSetupDiagram() {
+  return `<svg viewBox="0 0 260 148" xmlns="http://www.w3.org/2000/svg"
+    style="width:100%;max-width:360px;display:block;margin:0 auto 16px">
+    <defs>
+      <pattern id="cb" patternUnits="userSpaceOnUse" width="7" height="7">
+        <rect width="7" height="7" fill="#fce7f3"/>
+        <path d="M0 3.5h7M3.5 0v7" stroke="#be185d" stroke-width="0.5" opacity="0.35"/>
+      </pattern>
+    </defs>
+
+    <!-- ── NERTZ PILE ── face-down cards peek below the face-up card -->
+    <rect x="10" y="37" width="40" height="56" rx="5" fill="url(#cb)" stroke="#f9a8d4" stroke-width="1"/>
+    <rect x="10" y="34" width="40" height="56" rx="5" fill="url(#cb)" stroke="#f9a8d4" stroke-width="1"/>
+    <rect x="10" y="31" width="40" height="56" rx="5" fill="url(#cb)" stroke="#f9a8d4" stroke-width="1"/>
+    <!-- face-up card on top -->
+    <rect x="10" y="25" width="40" height="56" rx="5" fill="#fff" stroke="#d6d0c9" stroke-width="1.5"/>
+    <text x="16" y="39" font-family="Georgia,serif" font-size="13" font-weight="bold" fill="#be185d">A</text>
+    <text x="16" y="51" font-family="Georgia,serif" font-size="12" fill="#be185d">♥</text>
+
+    <!-- Nertz pile label -->
+    <text x="30" y="102" text-anchor="middle" font-family="Nunito,sans-serif" font-size="8.5"
+      font-weight="800" fill="#78716c" letter-spacing="0.05em">NERTZ PILE</text>
+    <text x="30" y="113" text-anchor="middle" font-family="Nunito,sans-serif" font-size="7.5" fill="#be185d">10 face-down</text>
+    <text x="30" y="123" text-anchor="middle" font-family="Nunito,sans-serif" font-size="7.5" fill="#be185d">+ 1 face-up</text>
+
+    <!-- ── WORK PILES ── 4 face-up cards -->
+    <rect x="66" y="25" width="40" height="56" rx="5" fill="#fff" stroke="#d6d0c9" stroke-width="1.5"/>
+    <text x="72" y="39" font-family="Georgia,serif" font-size="13" fill="#1c1917">5</text>
+    <text x="72" y="51" font-family="Georgia,serif" font-size="12" fill="#1c1917">♠</text>
+
+    <rect x="112" y="25" width="40" height="56" rx="5" fill="#fff" stroke="#d6d0c9" stroke-width="1.5"/>
+    <text x="118" y="39" font-family="Georgia,serif" font-size="13" fill="#be185d">J</text>
+    <text x="118" y="51" font-family="Georgia,serif" font-size="12" fill="#be185d">♦</text>
+
+    <rect x="158" y="25" width="40" height="56" rx="5" fill="#fff" stroke="#d6d0c9" stroke-width="1.5"/>
+    <text x="164" y="39" font-family="Georgia,serif" font-size="13" fill="#1c1917">8</text>
+    <text x="164" y="51" font-family="Georgia,serif" font-size="12" fill="#1c1917">♣</text>
+
+    <rect x="204" y="25" width="40" height="56" rx="5" fill="#fff" stroke="#d6d0c9" stroke-width="1.5"/>
+    <text x="210" y="39" font-family="Georgia,serif" font-size="13" fill="#be185d">7</text>
+    <text x="210" y="51" font-family="Georgia,serif" font-size="12" fill="#be185d">♥</text>
+
+    <!-- bracket under the 4 work piles -->
+    <path d="M66 88 L66 92 L244 92 L244 88" stroke="#e8e4de" stroke-width="1" fill="none"/>
+
+    <!-- Work piles label -->
+    <text x="155" y="102" text-anchor="middle" font-family="Nunito,sans-serif" font-size="8.5"
+      font-weight="800" fill="#78716c" letter-spacing="0.05em">WORK PILES</text>
+    <text x="155" y="113" text-anchor="middle" font-family="Nunito,sans-serif" font-size="7.5" fill="#be185d">4 cards face-up</text>
+
+    <!-- You indicator -->
+    <text x="130" y="140" text-anchor="middle" font-family="Nunito,sans-serif" font-size="8.5"
+      font-weight="700" fill="#be185d" letter-spacing="0.12em">▲  YOU  ▲</text>
+  </svg>`;
 }
 
 function buildRules() {
@@ -919,7 +976,7 @@ function buildRules() {
       <div style="font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:var(--text);margin-bottom:4px">How to Play</div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:24px">Nertz — House Rules</div>
       <div style="display:flex;flex-direction:column;gap:12px">
-        ${rulesSection('Setup', 'setup', 'var(--accent)')}
+        ${rulesSection('Setup', 'setup', 'var(--accent)', buildSetupDiagram())}
         ${rulesSection('Gameplay', 'gameplay', 'var(--accent)')}
         ${rulesSection('Scoring', 'scoring', 'var(--accent)')}
         ${rulesSection('House Rules', 'houseRules', 'var(--gold)')}
