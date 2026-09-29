@@ -266,7 +266,7 @@ const db = firebase.firestore();
 // DEFAULT RULES
 // =========================================================
 const DEFAULT_RULES = {
-  setup: `Each player gets their own deck of cards (use different card backs so decks don't get mixed up).\n\nDeal yourself 13 cards face-down in a pile — this is your Nertz pile. Flip the top card face-up.\n\nDeal 4 cards face-up in a row next to your Nertz pile — these are your work piles.\n\nThe rest of your deck goes in your hand.`,
+  setup: `Shuffle your cards and then from the top of your deck, place 4 cards face up in 1 row in front of you.\n\nOn either the left or right side of this row, stack 10 cards face down and then flip 1 card face up on top of this stack. This stack of cards is called your Nertz pile.`,
 
   gameplay: `The goal is to empty your Nertz pile before anyone else.\n\nIn the center of the table, anyone can start a foundation pile with an Ace. Build foundation piles up in suit (A → 2 → 3 … → K). All players play to all foundation piles simultaneously — there are no turns.\n\nOn your work piles, build down in alternating color (red 7 on black 8, etc.). You can move single cards or groups between work piles.\n\nFlip through your hand 3 cards at a time. Play cards from your hand onto work piles or the center foundations.\n\nWhenever your Nertz pile's top card can go somewhere, play it — that's the whole point. The moment your Nertz pile is empty, shout "Nertz!" and the round ends.`,
 
