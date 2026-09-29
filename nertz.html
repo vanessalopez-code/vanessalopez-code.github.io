@@ -263,6 +263,19 @@ firebase.initializeApp({
 const db = firebase.firestore();
 
 // =========================================================
+// DEFAULT RULES
+// =========================================================
+const DEFAULT_RULES = {
+  setup: `Each player gets their own deck of cards (use different card backs so decks don't get mixed up).\n\nDeal yourself 13 cards face-down in a pile — this is your Nertz pile. Flip the top card face-up.\n\nDeal 4 cards face-up in a row next to your Nertz pile — these are your work piles.\n\nThe rest of your deck goes in your hand.`,
+
+  gameplay: `The goal is to empty your Nertz pile before anyone else.\n\nIn the center of the table, anyone can start a foundation pile with an Ace. Build foundation piles up in suit (A → 2 → 3 … → K). All players play to all foundation piles simultaneously — there are no turns.\n\nOn your work piles, build down in alternating color (red 7 on black 8, etc.). You can move single cards or groups between work piles.\n\nFlip through your hand 3 cards at a time. Play cards from your hand onto work piles or the center foundations.\n\nWhenever your Nertz pile's top card can go somewhere, play it — that's the whole point. The moment your Nertz pile is empty, shout "Nertz!" and the round ends.`,
+
+  scoring: `After each round:\n• +1 point for every card you got onto the center foundations.\n• −2 points for every card left in your Nertz pile.\n\nThe first player to reach the target score (set by the tournament) wins the match.`,
+
+  houseRules: `No rules have been added for this tournament yet.`,
+};
+
+// =========================================================
 // STATE
 // =========================================================
 const DEF = {
@@ -296,6 +309,7 @@ const DEF = {
   stages: [],
   groups: [],
   games: [],
+  rules: {},
 };
 
 let S = { ...DEF, settings: { ...DEF.settings } };
@@ -888,42 +902,27 @@ function navIconRules(size=24) {
   </svg>`;
 }
 
+function rulesText(section) {
+  return (S.rules && S.rules[section]) ? S.rules[section] : DEFAULT_RULES[section];
+}
+function rulesSection(label, section, accentColor) {
+  const text = rulesText(section).replace(/\n/g, '<br>');
+  return `<div class="card" style="padding:18px 20px">
+    <div style="font-size:13px;font-weight:800;color:${accentColor};letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">${label}</div>
+    <div style="font-size:14px;color:var(--text);line-height:1.75">${text}</div>
+  </div>`;
+}
+
 function buildRules() {
   return `
     <div style="padding:20px 16px 24px">
       <div style="font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:var(--text);margin-bottom:4px">How to Play</div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:24px">Nertz — House Rules</div>
-
       <div style="display:flex;flex-direction:column;gap:12px">
-
-        <div class="card" style="padding:18px 20px">
-          <div style="font-size:13px;font-weight:800;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">Setup</div>
-          <div style="font-size:14px;color:var(--text);line-height:1.7">
-            Rules content coming soon.
-          </div>
-        </div>
-
-        <div class="card" style="padding:18px 20px">
-          <div style="font-size:13px;font-weight:800;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">Gameplay</div>
-          <div style="font-size:14px;color:var(--text);line-height:1.7">
-            Rules content coming soon.
-          </div>
-        </div>
-
-        <div class="card" style="padding:18px 20px">
-          <div style="font-size:13px;font-weight:800;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">Scoring</div>
-          <div style="font-size:14px;color:var(--text);line-height:1.7">
-            Rules content coming soon.
-          </div>
-        </div>
-
-        <div class="card" style="padding:18px 20px">
-          <div style="font-size:13px;font-weight:800;color:var(--gold);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">House Rules</div>
-          <div style="font-size:14px;color:var(--text);line-height:1.7">
-            Rules content coming soon.
-          </div>
-        </div>
-
+        ${rulesSection('Setup', 'setup', 'var(--accent)')}
+        ${rulesSection('Gameplay', 'gameplay', 'var(--accent)')}
+        ${rulesSection('Scoring', 'scoring', 'var(--accent)')}
+        ${rulesSection('House Rules', 'houseRules', 'var(--gold)')}
       </div>
     </div>`;
 }
@@ -1551,7 +1550,7 @@ function buildTournamentPicker() {
 // =========================================================
 function buildAdmin() {
   const tabs = [
-    ['settings','Settings'],['players','Players'],['stages','Stages'],['standings','Standings']
+    ['settings','Settings'],['players','Players'],['stages','Stages'],['standings','Standings'],['rules','Rules']
   ];
   return `
     <div class="hdr"><div class="hdr-inner">
@@ -1569,6 +1568,7 @@ function buildAdmin() {
       ${S.adminTab==='settings'?buildAdminSettings():
         S.adminTab==='players'?buildAdminPlayers():
         S.adminTab==='stages'?buildAdminStages():
+        S.adminTab==='rules'?buildAdminRules():
         buildAdminStandings()}
     </div>
     ${S.adminAuthModal ? buildAdminAuthModal() : ''}`;
@@ -1920,6 +1920,32 @@ function buildAdminStages() {
   </div>`;
 }
 
+function adminRulesField(label, section, accentColor) {
+  const val = (S.rules && S.rules[section]) ? S.rules[section] : DEFAULT_RULES[section];
+  return `<div class="card" style="padding:18px 20px">
+    <div style="font-size:13px;font-weight:800;color:${accentColor};letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">${label}</div>
+    <textarea data-rules-section="${section}" rows="6"
+      style="width:100%;font-family:'Nunito',sans-serif;font-size:13px;line-height:1.6;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;resize:vertical;outline:none"
+    >${escH(val)}</textarea>
+  </div>`;
+}
+
+function buildAdminRules() {
+  return `<div style="padding:16px 16px 32px;display:flex;flex-direction:column;gap:12px">
+    <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:4px">
+      Edit the rules for this tournament. Leave a section unchanged to use the default text.
+    </div>
+    ${adminRulesField('Setup', 'setup', 'var(--accent)')}
+    ${adminRulesField('Gameplay', 'gameplay', 'var(--accent)')}
+    ${adminRulesField('Scoring', 'scoring', 'var(--accent)')}
+    ${adminRulesField('House Rules', 'houseRules', 'var(--gold)')}
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary btn-full" data-a="saveRules">Save Rules</button>
+      <button class="btn btn-full" style="background:var(--surface2);border:1px solid var(--border);color:var(--text)" data-a="resetRules">Reset to Defaults</button>
+    </div>
+  </div>`;
+}
+
 function buildAdminStandings() {
   const stats = allStats();
   const method = S.settings.advancementMethod;
@@ -2087,6 +2113,19 @@ function onClick(e) {
             tournamentName:S.tournamentName, createdAt:S.createdAt, screen:'home', mode:'admin' };
       save(); render();
     }
+  }
+  else if (a==='saveRules') {
+    const fields = document.querySelectorAll('[data-rules-section]');
+    const rules = { ...(S.rules || {}) };
+    fields.forEach(f => {
+      const section = f.dataset.rulesSection;
+      const val = f.value.trim();
+      rules[section] = val || DEFAULT_RULES[section];
+    });
+    upd({ rules });
+  }
+  else if (a==='resetRules') {
+    if (confirm('Reset all rules to default text?')) upd({ rules: {} });
   }
   else if (a==='archiveTournament') {
     const nowArchived = !S.archived;
