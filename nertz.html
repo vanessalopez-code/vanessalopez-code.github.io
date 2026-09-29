@@ -305,6 +305,7 @@ let playerLibrary = [];
 let unsubscribeTournament = null;
 let unsubscribeTournamentList = null;
 let cropState = null;
+let unsubscribeLibrary = null;
 
 function loadLibraryLS() {
   try { return JSON.parse(localStorage.getItem('nertz-player-library') || '{}'); } catch(e) { return {}; }
@@ -314,6 +315,25 @@ function saveLibraryLS(lib) {
 }
 function refreshPlayerLibrary() {
   playerLibrary = Object.entries(loadLibraryLS()).map(([key, val]) => ({ key, ...val }));
+}
+// Write to localStorage (instant) + Firestore (cross-device)
+function saveLibrary(lib) {
+  saveLibraryLS(lib);
+  refreshPlayerLibrary();
+  db.collection('tournaments').doc('__playerLibrary__')
+    .set({ data: lib, updatedAt: Date.now() })
+    .catch(e => console.error('Library save error:', e));
+}
+function subscribeToLibrary() {
+  if (unsubscribeLibrary) return;
+  unsubscribeLibrary = db.collection('tournaments').doc('__playerLibrary__')
+    .onSnapshot(doc => {
+      if (!doc.exists || !doc.data().data) return;
+      const lib = doc.data().data;
+      saveLibraryLS(lib);
+      refreshPlayerLibrary();
+      render();
+    }, err => console.error('Library listener error:', err));
 }
 let photoCache = {};
 let openStageSettingsPanels = new Set();
@@ -364,7 +384,8 @@ function init() {
       <div style="font-size:40px;font-family:'Nunito',sans-serif;color:var(--accent)">♥</div>
       <div style="font-family:'Nunito',sans-serif;font-size:13px;letter-spacing:0.12em">Connecting...</div>
     </div>`;
-  refreshPlayerLibrary();
+  refreshPlayerLibrary();  // instant load from local cache
+  subscribeToLibrary();    // then sync from Firestore across devices
   unsubscribeTournamentList = db.collection('tournaments').orderBy('createdAt','desc')
     .onSnapshot(snap => {
       tournamentList = snap.docs.map(d => ({ id: d.id, ...d.data(), name: d.data().tournamentName || 'Unnamed' }));
@@ -613,8 +634,7 @@ function savePhotoToFirestore(pid, dataUrl) {
     const key = playerLibraryKey(p.name);
     const lib = loadLibraryLS();
     lib[key] = { ...lib[key], name: p.name, photo: dataUrl, updatedAt: Date.now() };
-    saveLibraryLS(lib);
-    refreshPlayerLibrary();
+    saveLibrary(lib);
   }
 }
 
@@ -703,7 +723,7 @@ function doApplyPhotoCrop() {
     const key = cropState.libraryKey;
     cropState = null;
     const lib = loadLibraryLS();
-    if (lib[key]) { lib[key] = { ...lib[key], photo: dataUrl, updatedAt: Date.now() }; saveLibraryLS(lib); refreshPlayerLibrary(); }
+    if (lib[key]) { lib[key] = { ...lib[key], photo: dataUrl, updatedAt: Date.now() }; saveLibrary(lib); }
     render();
   } else {
     const pid = cropState.playerId;
@@ -1962,8 +1982,7 @@ function onClick(e) {
     const entry = { ...lib[key], name: newName, updatedAt: Date.now() };
     if (newKey !== key) { delete lib[key]; }
     lib[newKey] = entry;
-    saveLibraryLS(lib);
-    refreshPlayerLibrary();
+    saveLibrary(lib);
     upd({ libraryEditModal: null });
   }
   else if (a==='deleteLibraryPlayer') {
@@ -1971,8 +1990,7 @@ function onClick(e) {
     if (!confirm('Remove this player from the library?')) return;
     const lib = loadLibraryLS();
     delete lib[key];
-    saveLibraryLS(lib);
-    refreshPlayerLibrary();
+    saveLibrary(lib);
     upd({ libraryEditModal: null });
   }
   else if (a==='addStage') doAddStage();
@@ -2100,8 +2118,7 @@ function doAddPlayer() {
   const key = playerLibraryKey(name);
   const lib = loadLibraryLS();
   lib[key] = { ...lib[key], name, updatedAt: Date.now() };
-  saveLibraryLS(lib);
-  refreshPlayerLibrary();
+  saveLibrary(lib);
   save(); render();
 }
 function doDeletePlayer(id) {
