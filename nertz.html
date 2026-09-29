@@ -1407,14 +1407,16 @@ function buildScoreModal() {
 // ADMIN
 // =========================================================
 function buildTournamentPicker() {
-  const list = [...tournamentList].sort((a,b) => b.createdAt - a.createdAt);
+  const isAdminPicker = S.pickerCreating;
+  const allList = [...tournamentList].sort((a,b) => b.createdAt - a.createdAt);
+  const list = isAdminPicker ? allList : allList.filter(t => !t.archived);
   return `
     <div class="hdr"><div class="hdr-inner">
       <div class="hdr-logo">♥ Nertz</div>
     </div></div>
     <div class="main no-nav">
       <div class="section" style="gap:16px">
-        ${S.pickerCreating ? `
+        ${isAdminPicker ? `
         <div class="card">
           <div class="card-header"><div class="card-title">🎉 New Tournament</div></div>
           <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border)">
@@ -1429,7 +1431,7 @@ function buildTournamentPicker() {
           ${list.map(t => `
             <div class="list-row" style="cursor:pointer" data-a="selectTournament" data-id="${escH(t.id)}">
               <div style="flex:1">
-                <div style="font-size:15px;font-weight:600">${escH(t.name || 'Unnamed Tournament')}</div>
+                <div style="font-size:15px;font-weight:600">${escH(t.name || 'Unnamed Tournament')}${t.archived ? ' <span style="font-size:11px;color:var(--muted);font-weight:400">(archived)</span>' : ''}</div>
                 <div style="font-size:12px;color:var(--muted)">${new Date(t.createdAt||0).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</div>
               </div>
               <div style="color:var(--border);font-size:20px">›</div>
@@ -1509,6 +1511,8 @@ function buildAdminSettings() {
 
     <div class="divider"></div>
     <button class="btn btn-danger btn-full btn-sm" data-a="resetAll">⚠ Reset Tournament</button>
+    <button class="btn btn-full btn-sm" style="background:var(--surface2);border:1px solid var(--border);color:var(--text)" data-a="archiveTournament">${S.archived ? '📤 Unarchive Tournament' : '📦 Archive Tournament'}</button>
+    <button class="btn btn-full btn-sm" style="background:rgba(180,30,30,.12);border:1px solid rgba(180,30,30,.35);color:#e05555" data-a="deleteTournament">🗑 Delete Tournament</button>
   </div>`;
 }
 
@@ -1920,6 +1924,22 @@ function onClick(e) {
       S = { ...DEF, settings:{...DEF.settings}, tournamentId:S.tournamentId,
             tournamentName:S.tournamentName, createdAt:S.createdAt, screen:'home', mode:'admin' };
       save(); render();
+    }
+  }
+  else if (a==='archiveTournament') {
+    const nowArchived = !S.archived;
+    upd({ archived: nowArchived });
+  }
+  else if (a==='deleteTournament') {
+    if(confirm('Permanently delete this tournament? This cannot be undone.')) {
+      const tid = S.tournamentId;
+      pendingSettings = null;
+      photoCache = {};
+      if (unsubscribeTournament) { unsubscribeTournament(); unsubscribeTournament = null; }
+      localStorage.removeItem('nertz2-active');
+      S = { ...DEF, settings:{...DEF.settings} };
+      render();
+      db.collection('tournaments').doc(tid).delete().catch(e => console.error('Delete error:', e));
     }
   }
   else if (a==='openPhotoCrop') openFilePicker(pid);
