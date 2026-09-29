@@ -347,8 +347,17 @@ let tournamentList = [];
 let playerLibrary = [];
 let unsubscribeTournament = null;
 let unsubscribeTournamentList = null;
-let unsubscribePlayerLibrary = null;
 let cropState = null;
+
+function loadLibraryLS() {
+  try { return JSON.parse(localStorage.getItem('nertz-player-library') || '{}'); } catch(e) { return {}; }
+}
+function saveLibraryLS(lib) {
+  try { localStorage.setItem('nertz-player-library', JSON.stringify(lib)); } catch(e) {}
+}
+function refreshPlayerLibrary() {
+  playerLibrary = Object.entries(loadLibraryLS()).map(([key, val]) => ({ key, ...val }));
+}
 let photoCache = {};
 let openStageSettingsPanels = new Set();
 
@@ -398,11 +407,7 @@ function init() {
       <div style="font-size:40px;font-family:'Nunito',sans-serif;color:var(--accent)">♥</div>
       <div style="font-family:'Nunito',sans-serif;font-size:13px;letter-spacing:0.12em">Connecting...</div>
     </div>`;
-  unsubscribePlayerLibrary = db.collection('playerLibrary')
-    .onSnapshot(snap => {
-      playerLibrary = snap.docs.map(d => ({ key: d.id, ...d.data() }));
-      if (S.adminTab === 'players') render();
-    }, err => console.error('Library error:', err));
+  refreshPlayerLibrary();
   unsubscribeTournamentList = db.collection('tournaments').orderBy('createdAt','desc')
     .onSnapshot(snap => {
       tournamentList = snap.docs.map(d => ({ id: d.id, ...d.data(), name: d.data().tournamentName || 'Unnamed' }));
@@ -638,9 +643,12 @@ function savePhotoToFirestore(pid, dataUrl) {
   const p = getPart(pid);
   if (p) {
     const key = playerLibraryKey(p.name);
-    db.collection('playerLibrary').doc(key)
-      .set({ name: p.name, photo: dataUrl, updatedAt: Date.now() }, { merge: true })
-      .catch(e => console.error('Library photo save error:', e));
+    const lib = loadLibraryLS();
+    if (lib[key]) {
+      lib[key] = { ...lib[key], photo: dataUrl, updatedAt: Date.now() };
+      saveLibraryLS(lib);
+      refreshPlayerLibrary();
+    }
   }
 }
 
@@ -2056,9 +2064,10 @@ function doAddPlayer() {
   const col=document.getElementById('part-col')?.value||null;
   S.participants.push({id:uid(),name,collectionId:col});
   const key = playerLibraryKey(name);
-  db.collection('playerLibrary').doc(key)
-    .set({ name, updatedAt: Date.now() }, { merge: true })
-    .catch(e => console.error('Library save error:', e));
+  const lib = loadLibraryLS();
+  lib[key] = { ...lib[key], name, updatedAt: Date.now() };
+  saveLibraryLS(lib);
+  refreshPlayerLibrary();
   save(); render();
 }
 function doDeletePlayer(id) {
