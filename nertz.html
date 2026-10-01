@@ -272,7 +272,7 @@ const DEFAULT_RULES = {
 
   scoring: `After each round:\n• +1 point for every card you got onto the center foundations.\n• −2 points for every card left in your Nertz pile.\n\nThe first player to reach the target score (set by the tournament) wins the match.`,
 
-  houseRules: `Once someone calls "Nertz," you can't move any cards. If there was a card already in your hand, it can be placed down to its intended destination.\n\nIf you have more than one card that can be placed in the Foundation Piles, you can only place one card at a time — you cannot prestack them before placing down. You cannot pick up more than two cards from your work piles at a time and each card must be in a separate hand.\n\nWhen moving cards from your work piles to foundation piles, you can either move the top card of a stack or the back card of a stack if it's able to be placed.`,
+  houseRules: `• Once someone calls "Nertz," you can't move any cards. If there was a card already in your hand, it can be placed down to its intended destination.\n• If you have more than one card that can be placed in the Foundation Piles, you can only place one card at a time — you cannot prestack them before placing down. You cannot pick up more than two cards from your work piles at a time and each card must be in a separate hand.\n• When moving cards from your work piles to foundation piles, you can either move the top card of a stack or the back card of a stack if it's able to be placed.\n• When moving a work pile from one to another, you must pick up and move the whole pile on top of another. You can pick up a single card and place it under another pile.`,
 };
 
 // =========================================================
@@ -906,7 +906,20 @@ function rulesText(section) {
   return (S.rules && S.rules[section]) ? S.rules[section] : DEFAULT_RULES[section];
 }
 function rulesSection(label, section, accentColor, extra='') {
-  const text = rulesText(section).replace(/\n/g, '<br>');
+  const raw = rulesText(section);
+  let text;
+  if (raw.startsWith('• ') || raw.includes('\n• ')) {
+    text = raw.split('\n').map(line => {
+      if (line.startsWith('• ')) {
+        return `<div style="display:flex;gap:10px;margin-bottom:10px">
+          <span style="color:${accentColor};flex-shrink:0;line-height:1.75">•</span>
+          <span>${line.slice(2)}</span></div>`;
+      }
+      return line ? `<div style="margin-bottom:6px">${line}</div>` : '';
+    }).join('');
+  } else {
+    text = raw.replace(/\n/g, '<br>');
+  }
   return `<div class="card" style="padding:18px 20px">
     <div style="font-size:13px;font-weight:800;color:${accentColor};letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">${label}</div>
     ${extra}
