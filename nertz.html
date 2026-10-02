@@ -290,6 +290,7 @@ const DEF = {
   pickerCreating: false,
   roundInputs: {},
   lbSort: 'wins',
+  lbStage: null,
   tournamentId: null,
   tournamentName: '',
   settings: {
@@ -353,7 +354,7 @@ function subscribeToLibrary() {
 let photoCache = {};
 let openStageSettingsPanels = new Set();
 
-const UI_FIELDS = new Set(['mode','screen','adminTab','stageFilter','playerStageFilter','activeGroupId','scoringModal','adminAuthModal','pickerCreating','roundInputs','lbSort','libraryEditModal']);
+const UI_FIELDS = new Set(['mode','screen','adminTab','stageFilter','playerStageFilter','activeGroupId','scoringModal','adminAuthModal','pickerCreating','roundInputs','lbSort','lbStage','libraryEditModal']);
 
 function save() {
   if (!S.tournamentId) return;
@@ -1371,26 +1372,48 @@ function buildBrackets() {
 }
 
 function buildLeaderboard() {
-  const stats = allStats();
   const sortKey = S.lbSort;
-  const sorted = [...S.participants].sort((a,b) => {
+
+  // Stage filter: default to most recent stage, 'all' for all-time
+  const mostRecentStage = S.stages.length ? S.stages[S.stages.length - 1] : null;
+  const selectedStageId = (S.lbStage && S.stages.find(s => s.id === S.lbStage))
+    ? S.lbStage
+    : (mostRecentStage ? mostRecentStage.id : 'all');
+
+  const stats = selectedStageId === 'all' ? allStats() : stageStats(selectedStageId);
+
+  // For a stage view, only show players who participated in that stage
+  let displayPlayers = [...S.participants];
+  if (selectedStageId !== 'all') {
+    const stageGroupIds = new Set(S.groups.filter(g => g.stageId === selectedStageId && !g.isCatchup).map(g => g.id));
+    const stagePids = new Set(S.games.filter(g => stageGroupIds.has(g.groupId)).flatMap(g => g.participantIds));
+    // Also include players assigned to groups even if no game started yet
+    S.groups.filter(g => g.stageId === selectedStageId && !g.isCatchup).forEach(g => g.participantIds.forEach(pid => stagePids.add(pid)));
+    displayPlayers = displayPlayers.filter(p => stagePids.has(p.id));
+  }
+
+  const sorted = [...displayPlayers].sort((a,b) => {
     const sa=stats[a.id]||{}, sb=stats[b.id]||{};
     if (sortKey==='played') return (sb.gamesPlayed-sa.gamesPlayed)||(sb.gamesWon-sa.gamesWon);
     if (sortKey==='wins') return (sb.gamesWon-sa.gamesWon)||(sb.totalPoints-sa.totalPoints);
     return (sb.totalPoints-sa.totalPoints)||(sb.gamesWon-sa.gamesWon);
   });
 
-  if (!sorted.length) return `<div class="empty"><div class="empty-icon">📊</div><p>No players yet. Ask the admin to add participants.</p></div>`;
+  if (!S.participants.length) return `<div class="empty"><div class="empty-icon">📊</div><p>No players yet. Ask the admin to add participants.</p></div>`;
 
   const medals = ['🥇','🥈','🥉'];
   return `
     <div class="section" style="gap:12px">
+      ${S.stages.length > 0 ? `<div class="stage-filter">
+        ${S.stages.map(st => `<button class="sf-btn ${selectedStageId===st.id?'active':''}" data-a="setLbStage" data-v="${st.id}">${escH(st.name)}</button>`).join('')}
+        <button class="sf-btn ${selectedStageId==='all'?'active':''}" data-a="setLbStage" data-v="all">All Time</button>
+      </div>` : ''}
       <div class="lb-filters">
         <button class="lb-filter ${sortKey==='wins'?'active':''}" data-a="setLbSort" data-v="wins">Most Wins</button>
         <button class="lb-filter ${sortKey==='points'?'active':''}" data-a="setLbSort" data-v="points">Most Points</button>
         <button class="lb-filter ${sortKey==='played'?'active':''}" data-a="setLbSort" data-v="played">Games Played</button>
       </div>
-      <div class="card">
+      ${sorted.length === 0 ? `<div class="empty"><div class="empty-icon">📊</div><p>No games played in this stage yet.</p></div>` : `<div class="card">
         ${sorted.map((p,i) => {
           const st = stats[p.id]||{totalPoints:0,gamesWon:0,gamesPlayed:0};
           const col = p.collectionId?getCol(p.collectionId):null;
@@ -1415,7 +1438,7 @@ function buildLeaderboard() {
             </div>
           </div>`;
         }).join('')}
-      </div>
+      </div>`}
     </div>`;
 }
 
@@ -2267,6 +2290,7 @@ function onClick(e) {
   else if (a==='back') upd({screen:'groups', scoringModal:null, roundInputs:{}});
   else if (a==='setAdminTab') { pendingSettings=null; upd({adminTab:v}); }
   else if (a==='setLbSort') upd({lbSort:v});
+  else if (a==='setLbStage') upd({lbStage:v});
   else if (a==='setSFilter') upd({stageFilter:v});
   else if (a==='setPlayerSFilter') upd({playerStageFilter:v});
   else if (a==='setSetting') {
