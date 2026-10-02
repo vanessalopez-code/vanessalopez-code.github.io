@@ -387,6 +387,8 @@ function subscribeToTournament(id) {
       S = { ...S, ...data, tournamentId: id, settings: { ...DEF.settings, ...(data.settings||{}) } };
     }
     render();
+    // Safety net: if all groups in a shuffle stage are done, create the next round
+    setTimeout(() => checkAndTriggerShuffles(), 0);
   }, err => console.error('Tournament listener error:', err));
 }
 
@@ -616,7 +618,8 @@ function groupStatus(groupId, stageId) {
   const done = completedGamesForGroup(groupId);
   if (!done.length) return 'pending';
   const ss = getStageSettings(stageId);
-  const gps = ss.gamesPerStage || 1;
+  // In shuffle mode each group plays exactly 1 game before players are reassigned
+  const gps = ss.shuffleAfterGame ? 1 : (ss.gamesPerStage || 1);
   return done.length >= gps ? 'final' : 'active';
 }
 
@@ -2983,6 +2986,8 @@ function doSubmitRound(gameid) {
   upd({roundInputs:{}});
 }
 function addNextRoundGroups(stageId, nextRound) {
+  // Guard: don't create duplicate rounds
+  if (S.groups.some(g => g.stageId === stageId && (g.round || 1) === nextRound && !g.isCatchup)) return;
   const active = activeGroupsForStage(stageId);
   const allPids = active.flatMap(g => g.participantIds);
   const ss = getStageSettings(stageId);
@@ -3007,6 +3012,33 @@ function addNextRoundGroups(stageId, nextRound) {
     });
   });
   S.groups = [...S.groups, ...newGroups];
+  // Auto-start a game for each new group so players see their scorecard immediately
+  newGroups.forEach(g => {
+    S.games.push({ id: uid(), groupId: g.id, stageId, participantIds: [...g.participantIds], rounds: [], completed: false, winnerId: null, startTime: Date.now() });
+  });
+}
+
+// Check all active stages and create next shuffle-round groups + games if all current groups are done.
+// Safe to call multiple times; addNextRoundGroups has a deduplication guard.
+function checkAndTriggerShuffles() {
+  let changed = false;
+  S.stages.forEach(stage => {
+    if (stage.status === 'complete') return;
+    const ss = getStageSettings(stage.id);
+    if (!ss.shuffleAfterGame) return;
+    const gamesPerStage = ss.gamesPerStage || 1;
+    if (gamesPerStage <= 1) return;
+    const currentRound = stageCurrentRound(stage.id);
+    if (currentRound >= gamesPerStage) return;
+    const activeGroups = activeGroupsForStage(stage.id);
+    if (!activeGroups.length) return;
+    const allDone = activeGroups.every(g => completedGamesForGroup(g.id).length > 0);
+    if (!allDone) return;
+    const before = S.groups.length + S.games.length;
+    addNextRoundGroups(stage.id, currentRound + 1);
+    if (S.groups.length + S.games.length > before) changed = true;
+  });
+  if (changed) save();
 }
 
 function doCompleteGame(gameid) {
@@ -3037,16 +3069,8 @@ function doCompleteGame(gameid) {
       }
       // If fewer games done than required, nothing else to do yet
     } else {
-      const ss = getStageSettings(stageId);
-      const gamesPerStage = ss.gamesPerStage || 1;
-      if (gamesPerStage > 1 && ss.shuffleAfterGame) {
-        const currentRound = stageCurrentRound(stageId);
-        if (currentRound < gamesPerStage) {
-          const activeGroups = activeGroupsForStage(stageId);
-          const allDone = activeGroups.every(g => completedGamesForGroup(g.id).length > 0);
-          if (allDone) addNextRoundGroups(stageId, currentRound + 1);
-        }
-      }
+      // Check if all current shuffle-round groups are done and we need the next round
+      checkAndTriggerShuffles();
     }
   }
 
