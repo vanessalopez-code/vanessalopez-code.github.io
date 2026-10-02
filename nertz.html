@@ -1425,7 +1425,7 @@ function buildGroups() {
             const cumG = cumulative(activeGame);
             const maxG = Math.max(...activeGame.participantIds.map(pid => { const sc=cumG[pid]||[]; return sc.length?sc[sc.length-1]:0; }));
             const tiedNamesG = activeGame.participantIds.filter(pid => { const sc=cumG[pid]||[]; return (sc.length?sc[sc.length-1]:0)===maxG; }).map(pid=>getPart(pid)?.name||'?');
-            winnerBanner = `<div class="sc-winner-banner" style="background:rgba(79,142,247,.1);border-color:rgba(79,142,247,.25);color:var(--accent)">🤝 Tie — ${tiedNamesG.map(n=>escH(n)).join(' &amp; ')}! No win credited.</div>`;
+            winnerBanner = `<div class="sc-winner-banner" style="background:rgba(79,142,247,.1);border-color:rgba(79,142,247,.25);color:var(--accent)">🤝 Tie — ${tiedNamesG.map(n=>escH(n)).join(' &amp; ')}! Each gets 1 win.</div>`;
           }
           html += `<div style="padding:8px 14px 12px;display:flex;flex-direction:column;gap:8px">
             ${winnerBanner}
@@ -1749,7 +1749,7 @@ function buildActiveScorecardView(game) {
       const cum2 = cumulative(game);
       const max2 = Math.max(...game.participantIds.map(pid => { const sc=cum2[pid]||[]; return sc.length?sc[sc.length-1]:0; }));
       const tiedNames = game.participantIds.filter(pid => { const sc=cum2[pid]||[]; return (sc.length?sc[sc.length-1]:0)===max2; }).map(pid=>getPart(pid)?.name||'?');
-      html += `<div class="sc-winner-banner" style="background:rgba(79,142,247,.1);border-color:rgba(79,142,247,.25);color:var(--accent)">🤝 Tie — ${tiedNames.map(n=>escH(n)).join(' & ')}! No win credited.</div>`;
+      html += `<div class="sc-winner-banner" style="background:rgba(79,142,247,.1);border-color:rgba(79,142,247,.25);color:var(--accent)">🤝 Tie — ${tiedNames.map(n=>escH(n)).join(' & ')}! Each gets 1 win.</div>`;
     }
     html += `<button class="btn btn-gold btn-full" data-a="completeGame" data-gid="${game.id}">Save & Complete Game</button>`;
   } else if (allHaveInput) {
