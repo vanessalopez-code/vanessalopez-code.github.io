@@ -486,13 +486,17 @@ function playerRoundTotal(game, pid) {
 
 function gameWinnerId(game) {
   const cum = cumulative(game);
-  let max = -Infinity, winner = null;
+  let max = -Infinity;
   game.participantIds.forEach(pid => {
     const sc = cum[pid]||[];
     const total = sc.length ? sc[sc.length-1] : 0;
-    if (total > max) { max = total; winner = pid; }
+    if (total > max) max = total;
   });
-  return winner;
+  const tied = game.participantIds.filter(pid => {
+    const sc = cum[pid]||[];
+    return (sc.length ? sc[sc.length-1] : 0) === max;
+  });
+  return tied.length === 1 ? tied[0] : null; // null = tie
 }
 
 function gameIsOver(game) {
@@ -509,6 +513,22 @@ function allStats() {
   const stats = {};
   S.participants.forEach(p => { stats[p.id] = {totalPoints:0, gamesWon:0, gamesPlayed:0}; });
   S.games.filter(g=>g.completed).forEach(game => {
+    game.participantIds.forEach(pid => {
+      if (!stats[pid]) stats[pid] = {totalPoints:0, gamesWon:0, gamesPlayed:0};
+      stats[pid].gamesPlayed++;
+      stats[pid].totalPoints += playerRoundTotal(game, pid);
+      if (game.winnerId === pid) stats[pid].gamesWon++;
+    });
+  });
+  return stats;
+}
+
+// Stats scoped to games played within a specific stage (for fair advancement ranking).
+function stageStats(stageId) {
+  const stageGroupIds = new Set(S.groups.filter(g => g.stageId === stageId && !g.isCatchup).map(g => g.id));
+  const stats = {};
+  S.participants.forEach(p => { stats[p.id] = {totalPoints:0, gamesWon:0, gamesPlayed:0}; });
+  S.games.filter(g => g.completed && stageGroupIds.has(g.groupId)).forEach(game => {
     game.participantIds.forEach(pid => {
       if (!stats[pid]) stats[pid] = {totalPoints:0, gamesWon:0, gamesPlayed:0};
       stats[pid].gamesPlayed++;
@@ -1546,8 +1566,16 @@ function buildActiveScorecardView(game) {
   html += `<div class="sc-actions">`;
   if (over) {
     const wid = gameWinnerId(game);
-    const wp = getPart(wid);
-    html += `<div class="sc-winner-banner">🏆 ${escH(wp?.name||'?')} wins this game!</div>`;
+    const wp = wid ? getPart(wid) : null;
+    if (wp) {
+      html += `<div class="sc-winner-banner">🏆 ${escH(wp.name)} wins this game!</div>`;
+    } else {
+      // Tie: find all players sharing the top score
+      const cum2 = cumulative(game);
+      const max2 = Math.max(...game.participantIds.map(pid => { const sc=cum2[pid]||[]; return sc.length?sc[sc.length-1]:0; }));
+      const tiedNames = game.participantIds.filter(pid => { const sc=cum2[pid]||[]; return (sc.length?sc[sc.length-1]:0)===max2; }).map(pid=>getPart(pid)?.name||'?');
+      html += `<div class="sc-winner-banner" style="background:rgba(79,142,247,.1);border-color:rgba(79,142,247,.25);color:var(--accent)">🤝 Tie — ${tiedNames.map(n=>escH(n)).join(' & ')}! No win credited.</div>`;
+    }
     html += `<button class="btn btn-gold btn-full" data-a="completeGame" data-gid="${game.id}">Save & Complete Game</button>`;
   } else if (allHaveInput) {
     html += `<button class="btn btn-primary btn-full" data-a="submitRound" data-gid="${game.id}">Submit Round ${currentRoundNum}</button>`;
@@ -2098,6 +2126,7 @@ function buildAdminStages() {
         ${isManual && ua.length > 0 && stageGroups.length > 0 ? `<div style="padding:8px 14px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)">${ua.length} player${ua.length!==1?'s':''} not yet assigned to a group</div>` : ''}
         ${mode === 'random' && stageGroups.length > 0 && !stageHasGames ? `<div style="padding:8px 14px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)">Tap Re-shuffle to generate a different grouping.</div>` : ''}
         ${stageDone && stage.status !== 'complete' ? `<div style="padding:10px 14px;font-size:13px;color:var(--green);border-top:1px solid var(--border);font-weight:600">✓ All games complete. ${isFinals ? 'Declare the winner!' : 'Ready to advance players to the next stage.'}</div>` : ''}
+        ${stageDone && !isFinals && hasAdvancerTie(stage.id) ? `<div style="padding:10px 14px;font-size:13px;color:var(--gold);border-top:1px solid var(--border);font-weight:600">⚠️ Advancement tie detected — all tied players will be included in the next stage.</div>` : ''}
 
         ${(() => {
           const catchupPids = (S.catchupQueue && S.catchupQueue[stage.id]) || [];
@@ -2507,12 +2536,14 @@ function catchupPlayerAdvances(cpid, groupId, stageId, ss) {
     if (g.winnerId) wins[g.winnerId] = (wins[g.winnerId] || 0) + 1;
     pids.forEach(pid => { points[pid] = (points[pid] || 0) + playerRoundTotal(g, pid); });
   });
-  const ranked = [...pids].sort((a, b) =>
+  const cpWins = wins[cpid] || 0, cpPts = points[cpid] || 0;
+  // Catch-up player advances if no opponent strictly beats them on both primary and secondary metric
+  const beatenBy = pids.filter(pid => pid !== cpid && (
     method === 'wins'
-      ? (wins[b] - wins[a]) || (points[b] - points[a])
-      : (points[b] - points[a]) || (wins[b] - wins[a])
-  );
-  return ranked[0] === cpid;
+      ? (wins[pid] > cpWins || (wins[pid] === cpWins && (points[pid] || 0) > cpPts))
+      : ((points[pid] || 0) > cpPts || ((points[pid] || 0) === cpPts && wins[pid] > cpWins))
+  ));
+  return beatenBy.length === 0; // advances if no one strictly outranks them
 }
 
 function doStartNextCatchupGame(groupId) {
@@ -2600,9 +2631,9 @@ function getStageAdvancers(stageId) {
   const ss = getStageSettings(stageId);
   const method = ss.advancementMethod;
   const n = ss.advancersPerCollection;
-  const stats = allStats();
+  // Use stage-scoped stats so earlier stages don't inflate rankings
+  const stats = stageStats(stageId);
 
-  // Group by collection (or all together if mixCollections), pick top N from each bucket
   const byCol = {};
   allPids.forEach(pid => {
     const p = getPart(pid);
@@ -2617,9 +2648,53 @@ function getStageAdvancers(stageId) {
         ? (sb.gamesWon-sa.gamesWon)||(sb.totalPoints-sa.totalPoints)
         : (sb.totalPoints-sa.totalPoints)||(sb.gamesWon-sa.gamesWon);
     });
-    advancers.push(...ranked.slice(0, n));
+    const cutoff = Math.min(n, ranked.length);
+    const included = ranked.slice(0, cutoff);
+    // If there's a next player tied with the last included, pull them in too
+    if (cutoff < ranked.length) {
+      const lastSt = stats[ranked[cutoff - 1]] || {};
+      for (let i = cutoff; i < ranked.length; i++) {
+        const nextSt = stats[ranked[i]] || {};
+        const tied = method === 'wins'
+          ? (lastSt.gamesWon === nextSt.gamesWon && lastSt.totalPoints === nextSt.totalPoints)
+          : (lastSt.totalPoints === nextSt.totalPoints && lastSt.gamesWon === nextSt.gamesWon);
+        if (tied) included.push(ranked[i]);
+        else break;
+      }
+    }
+    advancers.push(...included);
   });
   return advancers;
+}
+
+// Returns true if any collection has a tie at the advancement cutoff (for admin warning display).
+function hasAdvancerTie(stageId) {
+  const stageGroups = activeGroupsForStage(stageId);
+  const allPids = [...new Set(stageGroups.flatMap(g => g.participantIds))];
+  const ss = getStageSettings(stageId);
+  const method = ss.advancementMethod;
+  const n = ss.advancersPerCollection;
+  const stats = stageStats(stageId);
+  const byCol = {};
+  allPids.forEach(pid => {
+    const p = getPart(pid);
+    const k = ss.mixCollections ? '__all__' : (p?.collectionId || '__all__');
+    (byCol[k] = byCol[k]||[]).push(pid);
+  });
+  return Object.values(byCol).some(pids => {
+    if (pids.length <= n) return false;
+    const ranked = [...pids].sort((a, b) => {
+      const sa = stats[a]||{}, sb = stats[b]||{};
+      return method === 'wins'
+        ? (sb.gamesWon-sa.gamesWon)||(sb.totalPoints-sa.totalPoints)
+        : (sb.totalPoints-sa.totalPoints)||(sb.gamesWon-sa.gamesWon);
+    });
+    const lastIn = stats[ranked[n - 1]] || {};
+    const firstOut = stats[ranked[n]] || {};
+    return method === 'wins'
+      ? (lastIn.gamesWon === firstOut.gamesWon && lastIn.totalPoints === firstOut.totalPoints)
+      : (lastIn.totalPoints === firstOut.totalPoints && lastIn.gamesWon === firstOut.gamesWon);
+  });
 }
 
 function doRandomizeStage(sid) {
@@ -2688,8 +2763,10 @@ function doGenerateFinals(sid) {
   const prevStageId = S.stages[stageIdx - 1].id;
   const advancers = getStageAdvancers(prevStageId);
   if (advancers.length === 0) { alert('No advancers found from the previous stage.'); return; }
-  const stats = allStats();
-  const method = S.settings.advancementMethod;
+  // Use the previous stage's scoped stats and its own advancementMethod (not the global setting)
+  const stats = stageStats(prevStageId);
+  const prevSS = getStageSettings(prevStageId);
+  const method = prevSS.advancementMethod;
   // Take top 1 per collection among the advancers
   const byCol = {};
   advancers.forEach(pid => {
