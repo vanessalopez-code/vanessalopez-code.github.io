@@ -2081,7 +2081,9 @@ function buildAdminStages() {
         ${stageDone && stage.status !== 'complete' ? `<div style="padding:10px 14px;font-size:13px;color:var(--green);border-top:1px solid var(--border);font-weight:600">✓ All games complete. ${isFinals ? 'Declare the winner!' : 'Ready to advance players to the next stage.'}</div>` : ''}
 
         <div style="border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap">
-          ${stage.status === 'active' ? `<button class="btn btn-ghost btn-xs" data-a="markStageComplete" data-id="${stage.id}">Mark Complete</button>` : ''}
+          ${stage.status === 'active' ? `<button class="btn btn-ghost btn-xs" data-a="markStageComplete" data-id="${stage.id}"
+              ${!stageDone ? 'disabled style="opacity:0.4;cursor:not-allowed" title="All groups must submit scores first"' : ''}>Mark Complete</button>
+              ${!stageDone ? `<span style="font-size:11px;color:var(--muted)">All groups must submit scores first</span>` : ''}` : ''}
           <button class="btn btn-danger btn-xs" data-a="deleteStage" data-id="${stage.id}">Delete Stage</button>
         </div>
       </div>`;
@@ -2255,7 +2257,7 @@ function onClick(e) {
     stg.settings = { ...(stg.settings||{}), [el.dataset.k]: val };
     save(); render();
   }
-  else if (a==='markStageComplete') { const st=getStage(id); if(st){st.status='complete';save();render();} }
+  else if (a==='markStageComplete') { const st=getStage(id); if(st){ if(!stageIsFullyDone(st.id)){alert('All groups must submit scores before marking this stage complete.');return;} st.status='complete';save();render();} }
   else if (a==='addGroup') doAddGroup(sid);
   else if (a==='deleteGroup') doDeleteGroup(id);
   else if (a==='reopenGame') doReopenGame(id);
