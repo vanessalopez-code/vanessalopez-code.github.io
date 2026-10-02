@@ -1437,10 +1437,10 @@ function buildLeaderboard() {
   const sortKey = S.lbSort;
 
   // Stage filter: default to most recent stage, 'all' for all-time
-  const mostRecentStage = S.stages.length ? S.stages[S.stages.length - 1] : null;
+  const firstActiveStage = S.stages.find(st => st.status !== 'complete') || S.stages[S.stages.length - 1] || null;
   const selectedStageId = (S.lbStage && S.stages.find(s => s.id === S.lbStage))
     ? S.lbStage
-    : (mostRecentStage ? mostRecentStage.id : 'all');
+    : (firstActiveStage ? firstActiveStage.id : 'all');
 
   const stats = selectedStageId === 'all' ? allStats() : stageStats(selectedStageId);
 
