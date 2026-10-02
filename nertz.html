@@ -1155,7 +1155,16 @@ function buildHome() {
       <div class="home-card-icon">${navIconGroups(28)}</div>
       <div class="home-card-body">
         <h2>Groups</h2>
-        <p>View groups and enter scores</p>
+        <p>${(() => {
+          const active = S.games.filter(g => !g.completed).length;
+          const pending = S.groups.filter(g => {
+            const stage = S.stages.find(st => st.id === g.stageId && st.status !== 'complete');
+            return stage && !activeGameForGroup(g.id) && !completedGamesForGroup(g.id).length;
+          }).length;
+          if (active > 0) return `<span style="color:var(--accent);font-weight:700">● ${active} game${active!==1?'s':''} in progress</span>`;
+          if (pending > 0) return `${pending} group${pending!==1?'s':''} waiting to start`;
+          return 'View groups and enter scores';
+        })()}</p>
       </div>
       <div class="home-card-arrow">›</div>
     </div>
@@ -1164,6 +1173,14 @@ function buildHome() {
       <div class="home-card-body">
         <h2>Ranking</h2>
         <p>Player standings</p>
+      </div>
+      <div class="home-card-arrow">›</div>
+    </div>
+    <div class="home-card" data-a="setScreen" data-v="rules">
+      <div class="home-card-icon">${navIconRules(28)}</div>
+      <div class="home-card-body">
+        <h2>How to Play</h2>
+        <p>Rules &amp; house rules</p>
       </div>
       <div class="home-card-arrow">›</div>
     </div>
@@ -1239,6 +1256,20 @@ function buildGroups() {
     return html;
   }
 
+  // Show a brief how-to tip if no games in this stage have any rounds yet
+  const stageHasAnyRounds = S.games.some(g => {
+    const grp = getGroup(g.groupId);
+    return grp && grp.stageId === selectedSid && g.rounds && g.rounds.length > 0;
+  });
+  if (!stageHasAnyRounds) {
+    const anyActive = stageGroups.some(g => activeGameForGroup(g.id));
+    if (anyActive) {
+      html += `<div style="margin:0 16px;padding:10px 14px;background:rgba(79,142,247,.07);border:1px solid rgba(79,142,247,.18);border-radius:12px;font-size:13px;color:var(--text);line-height:1.5">
+        <strong>How to score:</strong> Tap a player's row in the table to enter their round score, then tap <strong>Submit Round</strong> when everyone's score is in.
+      </div>`;
+    }
+  }
+
   html += `<div style="display:flex;flex-direction:column;gap:14px;padding:0 16px 16px;">`;
 
   stageGroups.forEach(group => {
@@ -1270,22 +1301,39 @@ function buildGroups() {
       if (activeGame) {
         html += renderGroupGameTable(activeGame, group, {isCurrent:true, showCurrent:showCurrentRound, curRoundNum:currentRoundNum});
         if (showCurrentRound) {
-          const allHaveInput = group.participantIds.every(pid => {
+          const scoredCount = group.participantIds.filter(pid => {
             const inp = S.roundInputs[pid];
             return inp !== undefined && inp !== '';
-          });
+          }).length;
+          const totalCount = group.participantIds.length;
+          const allHaveInput = scoredCount === totalCount;
           if (allHaveInput) {
-            html += `<div style="padding:8px 14px 12px">
+            html += `<div style="padding:8px 14px 12px;display:flex;flex-direction:column;gap:8px">
+              <div style="font-size:12px;color:var(--green);font-weight:700;text-align:center">✓ All ${totalCount} scores entered</div>
               <button class="btn btn-primary btn-full" data-a="submitRound" data-gid="${activeGame.id}">
                 Submit Round ${currentRoundNum}
               </button>
             </div>`;
+          } else {
+            html += `<div style="padding:6px 14px 12px;display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:13px;color:var(--muted)">Tap a player's score to enter it</span>
+              <span style="font-size:13px;font-weight:700;color:${scoredCount>0?'var(--accent)':'var(--muted)'}">${scoredCount}/${totalCount} scored</span>
+            </div>`;
           }
         } else if (gameOver) {
           const wid = gameWinnerId(activeGame);
-          const wp = getPart(wid);
+          const wp = wid ? getPart(wid) : null;
+          let winnerBanner;
+          if (wp) {
+            winnerBanner = `<div class="sc-winner-banner">🏆 ${escH(wp.name)} wins this game!</div>`;
+          } else {
+            const cumG = cumulative(activeGame);
+            const maxG = Math.max(...activeGame.participantIds.map(pid => { const sc=cumG[pid]||[]; return sc.length?sc[sc.length-1]:0; }));
+            const tiedNamesG = activeGame.participantIds.filter(pid => { const sc=cumG[pid]||[]; return (sc.length?sc[sc.length-1]:0)===maxG; }).map(pid=>getPart(pid)?.name||'?');
+            winnerBanner = `<div class="sc-winner-banner" style="background:rgba(79,142,247,.1);border-color:rgba(79,142,247,.25);color:var(--accent)">🤝 Tie — ${tiedNamesG.map(n=>escH(n)).join(' &amp; ')}! No win credited.</div>`;
+          }
           html += `<div style="padding:8px 14px 12px;display:flex;flex-direction:column;gap:8px">
-            <div class="sc-winner-banner">🏆 ${escH(wp?.name||'?')} wins this game!</div>
+            ${winnerBanner}
             <button class="btn btn-gold btn-full" data-a="completeGame" data-gid="${activeGame.id}">Save &amp; Complete Game</button>
           </div>`;
         }
@@ -1564,9 +1612,12 @@ function buildActiveScorecardView(game) {
     html += `</div>`;
 
     // Instruction
-    if (!allHaveInput) {
-      html += `<div style="padding:4px 16px 12px;font-size:13px;color:var(--muted)">Tap a player to enter their round score</div>`;
-    }
+    const scoredCountSC = game.participantIds.filter(pid => hasRoundInput(pid)).length;
+    const totalCountSC = game.participantIds.length;
+    html += `<div style="padding:4px 16px 10px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:13px;color:var(--muted)">${allHaveInput ? '✓ All scores entered' : 'Tap a player to enter their score'}</span>
+      <span style="font-size:13px;font-weight:700;color:${allHaveInput?'var(--green)':scoredCountSC>0?'var(--accent)':'var(--muted)'}">${scoredCountSC}/${totalCountSC}</span>
+    </div>`;
   }
 
   // Progress bars
@@ -1602,8 +1653,10 @@ function buildActiveScorecardView(game) {
     html += `<button class="btn btn-gold btn-full" data-a="completeGame" data-gid="${game.id}">Save & Complete Game</button>`;
   } else if (allHaveInput) {
     html += `<button class="btn btn-primary btn-full" data-a="submitRound" data-gid="${game.id}">Submit Round ${currentRoundNum}</button>`;
-    html += `<button class="btn btn-ghost btn-full btn-sm" data-a="endGame" data-gid="${game.id}">End Game Early</button>`;
-  } else {
+    if (game.rounds.length >= 1) {
+      html += `<button class="btn btn-ghost btn-full btn-sm" data-a="endGame" data-gid="${game.id}">End Game Early</button>`;
+    }
+  } else if (game.rounds.length >= 1) {
     html += `<button class="btn btn-ghost btn-full btn-sm" data-a="endGame" data-gid="${game.id}">End Game Early</button>`;
   }
   html += `</div>`;
@@ -1722,26 +1775,32 @@ function buildScoreModal() {
 
   const smBg = avatarBg(pid);
   const smAvStyle = smBg ? smBg : (col ? `background:${col.color}` : '');
+  const activeGame4modal = activeGameForGroup(S.activeGroupId);
+  const currentRoundNum4modal = activeGame4modal ? activeGame4modal.rounds.length + 1 : 1;
+  const ss4modal = S.activeGroupId ? getStageSettings(getGroup(S.activeGroupId)?.stageId) : S.settings;
+  const target4modal = ss4modal?.pointsToWin || S.settings.pointsToWin;
+  const roundHeading = roundLabel ? `Editing ${roundLabel}` : `Round ${currentRoundNum4modal} Score`;
   return `<div class="overlay" data-a="closeModal">
     <div class="sheet">
       <div class="sheet-handle"></div>
-      ${roundLabel ? `<div style="text-align:center;font-size:12px;font-weight:700;color:var(--accent);padding:4px 0 0;letter-spacing:0.05em">Editing ${roundLabel}</div>` : ''}
+      <div style="text-align:center;font-size:13px;font-weight:800;color:var(--accent);padding:6px 0 2px;letter-spacing:0.05em;text-transform:uppercase">${roundHeading}</div>
       <div class="sheet-player">
         <div class="sheet-avatar" style="${smAvStyle}">
           ${smBg?'':escH(initials(p?.name||'?'))}
         </div>
         <div class="sheet-name">${escH(p?.name||'?')}</div>
-        <div class="sheet-total">${roundLabel ? 'Total before this round' : 'Running total'}: <strong class="${total>=0?'pos':'neg'}">${total}</strong></div>
-        <button class="btn btn-ghost btn-xs" data-a="openPhotoCrop" data-pid="${pid}" style="margin-top:6px">📷 ${smBg?'Change':'Add'} Photo</button>
+        <div class="sheet-total">${roundLabel ? 'Total before this round' : 'Running total'}: <strong class="${total>=0?'pos':'neg'}">${total}</strong> <span style="color:var(--muted);font-weight:400">· first to ${target4modal} wins</span></div>
       </div>
+      <div style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:8px">Enter points earned this round (can be negative)</div>
       <input type="number" class="score-input-xl" id="score-inp" value="${isNA?'':(curVal!==''&&curVal!==undefined?curVal:'')}"
-        placeholder="Score" ${isNA?'disabled':''}>
+        placeholder="e.g. +12, -3, 0" ${isNA?'disabled':''}>
       <div class="na-toggle ${isNA?'active':''}" data-a="toggleNA" data-pid="${pid}">
         ${isNA?'✓ ':''} N/A — Player sat out this round
       </div>
       <button class="btn btn-primary btn-full" data-a="saveScore" data-pid="${pid}">
         Save Score
       </button>
+      <button class="btn btn-ghost btn-xs" data-a="openPhotoCrop" data-pid="${pid}" style="margin-top:10px;width:100%">📷 ${smBg?'Change':'Add'} Photo</button>
     </div>
   </div>`;
 }
