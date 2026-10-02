@@ -1238,10 +1238,10 @@ function renderGroupGameTable(g, group, opts) {
 function buildGroups() {
   if (!S.stages.length) return `<div class="empty"><div class="empty-icon">🃏</div><p>No stages set up yet. Ask the admin to configure the tournament.</p></div>`;
 
-  // Default to the most recent stage
-  const mostRecent = S.stages[S.stages.length - 1];
+  // Default to the first stage that isn't complete; fall back to last stage if all are done
+  const firstActive = S.stages.find(st => st.status !== 'complete') || S.stages[S.stages.length - 1];
   const selectedSid = (S.playerStageFilter && S.stages.find(s => s.id === S.playerStageFilter))
-    ? S.playerStageFilter : mostRecent.id;
+    ? S.playerStageFilter : firstActive.id;
   const selectedStage = getStage(selectedSid);
   const ss = getStageSettings(selectedSid);
   const target = ss.pointsToWin;
