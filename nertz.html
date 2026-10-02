@@ -1298,11 +1298,11 @@ function buildGroups() {
     }).join('');
 
     html += `<div class="card" style="padding:0;overflow:hidden">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px 6px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px 6px">
         <div style="font-family:'Nunito',sans-serif;font-size:14px;font-weight:700">${escH(group.name)}</div>
         ${statusBadge}
       </div>
-      <div style="display:flex;gap:10px;padding:10px 14px 10px;overflow-x:auto;border-bottom:1px solid var(--border)">
+      <div style="display:flex;gap:10px;padding:6px 14px 10px;overflow-x:auto">
         ${groupAvatars}
       </div>`;
 
@@ -1369,11 +1369,17 @@ function buildGroups() {
         });
       }
 
-      // Start Next Game button
+      // Start Next Game button (only when groups stay fixed between games)
       if (!activeGame && status !== 'final') {
-        html += `<div style="padding:8px 14px 12px">
-          <button class="btn btn-primary btn-sm" data-a="startGroupGame" data-gid="${group.id}">▶ Start Next Game</button>
-        </div>`;
+        if (ss.shuffleAfterGame) {
+          html += `<div style="padding:8px 14px 12px;font-size:13px;color:var(--muted);line-height:1.5;text-align:center">
+            ⏳ Waiting for all players to finish their game. You'll be assigned to a new group for the next game.
+          </div>`;
+        } else {
+          html += `<div style="padding:8px 14px 12px">
+            <button class="btn btn-primary btn-sm" data-a="startGroupGame" data-gid="${group.id}">▶ Start Next Game</button>
+          </div>`;
+        }
       }
     }
 
