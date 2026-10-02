@@ -597,12 +597,36 @@ function getStageSettings(stageId) {
 }
 
 // Returns groups in a stage that belong to the current (highest) round.
-// Excludes catch-up groups so they don't interfere with round calculations.
+// Returns the collection key for a group based on its first player's collectionId.
+function groupColKey(group, ss) {
+  if (ss && ss.mixCollections) return '__all__';
+  const pid = group.participantIds && group.participantIds[0];
+  return pid ? (getPart(pid)?.collectionId || '__all__') : '__all__';
+}
+
+// Excludes catch-up groups. In shuffle mode returns the highest-round groups
+// per collection independently (so different collections can be on different rounds).
 function activeGroupsForStage(stageId) {
   const groups = S.groups.filter(g => g.stageId === stageId && !g.isCatchup);
   if (!groups.length) return [];
-  const maxRound = Math.max(...groups.map(g => g.round || 1));
-  return groups.filter(g => (g.round || 1) === maxRound);
+  const ss = getStageSettings(stageId);
+  if (!ss.shuffleAfterGame) {
+    const maxRound = Math.max(...groups.map(g => g.round || 1));
+    return groups.filter(g => (g.round || 1) === maxRound);
+  }
+  // Shuffle mode: per-collection max-round groups
+  const byCol = {};
+  groups.forEach(g => {
+    const k = groupColKey(g, ss);
+    if (!byCol[k]) byCol[k] = [];
+    byCol[k].push(g);
+  });
+  const result = [];
+  Object.values(byCol).forEach(colGroups => {
+    const maxRound = Math.max(...colGroups.map(g => g.round || 1));
+    result.push(...colGroups.filter(g => (g.round || 1) === maxRound));
+  });
+  return result;
 }
 
 function stageCurrentRound(stageId) {
@@ -2985,31 +3009,29 @@ function doSubmitRound(gameid) {
   game.rounds.push(round);
   upd({roundInputs:{}});
 }
-function addNextRoundGroups(stageId, nextRound) {
-  // Guard: don't create duplicate rounds
-  if (S.groups.some(g => g.stageId === stageId && (g.round || 1) === nextRound && !g.isCatchup)) return;
-  const active = activeGroupsForStage(stageId);
-  const allPids = active.flatMap(g => g.participantIds);
+// Create next-round groups + auto-started games for one collection's worth of sourceGroups.
+// colKey is used for the deduplication guard and group naming.
+function addNextRoundGroupsForCollection(stageId, nextRound, colKey, sourceGroups) {
   const ss = getStageSettings(stageId);
+  // Guard: don't create duplicate rounds for this collection
+  const alreadyExists = S.groups.some(g =>
+    g.stageId === stageId && (g.round || 1) === nextRound && !g.isCatchup &&
+    groupColKey(g, ss) === colKey
+  );
+  if (alreadyExists) return;
+  const allPids = sourceGroups.flatMap(g => g.participantIds);
   const size = ss.gameSize;
   const minSize = ss.minGroupSize || 1;
-  const byCol = {};
-  allPids.forEach(pid => {
-    const p = getPart(pid);
-    const k = ss.mixCollections ? '__all__' : (p?.collectionId || '__all__');
-    (byCol[k] = byCol[k]||[]).push(pid);
-  });
+  const col = (colKey !== '__all__') ? getCol(colKey) : null;
+  const shuffled = [...allPids].sort(() => Math.random() - 0.5);
+  const sizes = distributeGroups(shuffled.length, size, minSize);
   const newGroups = [];
-  let gNum = 1;
-  Object.entries(byCol).forEach(([cid, pids]) => {
-    const shuffled = [...pids].sort(() => Math.random() - 0.5);
-    const col = (!ss.mixCollections && cid !== '__all__') ? getCol(cid) : null;
-    const sizes = distributeGroups(shuffled.length, size, minSize);
-    let pos = 0;
-    sizes.forEach(sz => {
-      const chunk = shuffled.slice(pos, pos + sz); pos += sz;
-      newGroups.push({ id: uid(), stageId, round: nextRound, name: `Group ${gNum++}${col ? ' ('+col.name+')' : ''}`, participantIds: chunk });
-    });
+  // Start group numbering after any same-round groups already added this tick
+  let gNum = S.groups.filter(g => g.stageId === stageId && (g.round || 1) === nextRound && !g.isCatchup).length + 1;
+  let pos = 0;
+  sizes.forEach(sz => {
+    const chunk = shuffled.slice(pos, pos + sz); pos += sz;
+    newGroups.push({ id: uid(), stageId, round: nextRound, name: `Group ${gNum++}${col ? ' ('+col.name+')' : ''}`, participantIds: chunk });
   });
   S.groups = [...S.groups, ...newGroups];
   // Auto-start a game for each new group so players see their scorecard immediately
@@ -3018,8 +3040,8 @@ function addNextRoundGroups(stageId, nextRound) {
   });
 }
 
-// Check all active stages and create next shuffle-round groups + games if all current groups are done.
-// Safe to call multiple times; addNextRoundGroups has a deduplication guard.
+// Check all active stages and, per collection, create the next shuffle-round groups+games
+// whenever all current-round groups for that collection are done. Safe to call repeatedly.
 function checkAndTriggerShuffles() {
   let changed = false;
   S.stages.forEach(stage => {
@@ -3028,15 +3050,25 @@ function checkAndTriggerShuffles() {
     if (!ss.shuffleAfterGame) return;
     const gamesPerStage = ss.gamesPerStage || 1;
     if (gamesPerStage <= 1) return;
-    const currentRound = stageCurrentRound(stage.id);
-    if (currentRound >= gamesPerStage) return;
-    const activeGroups = activeGroupsForStage(stage.id);
-    if (!activeGroups.length) return;
-    const allDone = activeGroups.every(g => completedGamesForGroup(g.id).length > 0);
-    if (!allDone) return;
-    const before = S.groups.length + S.games.length;
-    addNextRoundGroups(stage.id, currentRound + 1);
-    if (S.groups.length + S.games.length > before) changed = true;
+    const stageGroups = S.groups.filter(g => g.stageId === stage.id && !g.isCatchup);
+    if (!stageGroups.length) return;
+    // Group by collection — each collection shuffles independently
+    const byCol = {};
+    stageGroups.forEach(g => {
+      const k = groupColKey(g, ss);
+      if (!byCol[k]) byCol[k] = [];
+      byCol[k].push(g);
+    });
+    Object.entries(byCol).forEach(([colKey, colGroups]) => {
+      const maxRound = Math.max(...colGroups.map(g => g.round || 1));
+      if (maxRound >= gamesPerStage) return; // Collection finished all rounds
+      const currentRoundGroups = colGroups.filter(g => (g.round || 1) === maxRound);
+      const allDone = currentRoundGroups.every(g => completedGamesForGroup(g.id).length > 0);
+      if (!allDone) return;
+      const before = S.groups.length + S.games.length;
+      addNextRoundGroupsForCollection(stage.id, maxRound + 1, colKey, currentRoundGroups);
+      if (S.groups.length + S.games.length > before) changed = true;
+    });
   });
   if (changed) save();
 }
