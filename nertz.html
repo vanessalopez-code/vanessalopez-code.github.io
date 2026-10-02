@@ -283,7 +283,7 @@ const DEF = {
   screen: 'picker',
   adminTab: 'settings',
   stageFilter: 'all',
-  playerStageFilter: null,
+  playerStageFilter: null, playerGameFilter: null,
   activeGroupId: null,
   scoringModal: null,
   adminAuthModal: false,
@@ -354,7 +354,7 @@ function subscribeToLibrary() {
 let photoCache = {};
 let openStageSettingsPanels = new Set();
 
-const UI_FIELDS = new Set(['mode','screen','adminTab','stageFilter','playerStageFilter','activeGroupId','scoringModal','adminAuthModal','pickerCreating','roundInputs','lbSort','lbStage','libraryEditModal']);
+const UI_FIELDS = new Set(['mode','screen','adminTab','stageFilter','playerStageFilter','playerGameFilter','activeGroupId','scoringModal','adminAuthModal','pickerCreating','roundInputs','lbSort','lbStage','libraryEditModal']);
 
 function save() {
   if (!S.tournamentId) return;
@@ -1277,7 +1277,34 @@ function buildGroups() {
     ${S.stages.map(st => `<button class="sf-btn ${selectedSid===st.id?'active':''}" data-a="setPlayerSFilter" data-v="${st.id}">${escH(st.name)}</button>`).join('')}
   </div>`;
 
-  const stageGroups = activeGroupsForStage(selectedSid);
+  // In shuffle mode with multiple games per stage, show a Game selector
+  let selectedRound = 1;
+  if (ss.shuffleAfterGame && (ss.gamesPerStage || 1) > 1) {
+    const allStageGroups = S.groups.filter(g => g.stageId === selectedSid && !g.isCatchup);
+    const allRounds = [...new Set(allStageGroups.map(g => g.round || 1))].sort((a, b) => a - b);
+    // Default: lowest round that has any active or pending group
+    const firstOpenRound = allRounds.find(r => {
+      return allStageGroups.filter(g => (g.round || 1) === r)
+        .some(g => groupStatus(g.id, selectedSid) !== 'final');
+    }) || allRounds[allRounds.length - 1] || 1;
+    // Use saved filter only if it's a valid round that exists
+    const saved = S.playerGameFilter;
+    selectedRound = (saved && allRounds.includes(saved)) ? saved : firstOpenRound;
+    if (allRounds.length > 1) {
+      html += `<div class="stage-filter" style="margin-top:-8px">
+        ${allRounds.map(r => {
+          const hasOpen = allStageGroups.filter(g => (g.round||1)===r).some(g => groupStatus(g.id,selectedSid)!=='final');
+          return `<button class="sf-btn ${selectedRound===r?'active':''}" data-a="setPlayerGameFilter" data-v="${r}">Game ${r}${hasOpen?' ●':''}</button>`;
+        }).join('')}
+      </div>`;
+    }
+  }
+
+  // Filter displayed groups to the selected round (in shuffle mode) or use per-collection active groups
+  const stageGroups = ss.shuffleAfterGame && (ss.gamesPerStage || 1) > 1
+    ? S.groups.filter(g => g.stageId === selectedSid && !g.isCatchup && (g.round || 1) === selectedRound)
+    : activeGroupsForStage(selectedSid);
+
   if (!stageGroups.length) {
     html += `<div class="empty"><div class="empty-icon">🃏</div><p>No groups in this stage yet.</p></div>`;
     return html;
@@ -2398,7 +2425,8 @@ function onClick(e) {
   else if (a==='setLbSort') upd({lbSort:v});
   else if (a==='setLbStage') upd({lbStage:v});
   else if (a==='setSFilter') upd({stageFilter:v});
-  else if (a==='setPlayerSFilter') upd({playerStageFilter:v});
+  else if (a==='setPlayerSFilter') upd({playerStageFilter:v, playerGameFilter:null});
+  else if (a==='setPlayerGameFilter') upd({playerGameFilter: Number(v)});
   else if (a==='setSetting') {
     let val=v;
     if(v==='true') val=true; else if(v==='false') val=false; else if(!isNaN(+v)) val=+v;
