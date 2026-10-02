@@ -1278,7 +1278,7 @@ function renderGroupGameTable(g, group, opts) {
       }
     });
     if (showCurrent) {
-      var inp = S.roundInputs[pid];
+      var inp = (S.roundInputs[activeGame?.id]||{})[pid];
       var hasVal = inp !== undefined && inp !== '';
       var isNA = inp === 'NA';
       t += '<td style="text-align:center;padding:3px 2px"><button class="btn btn-xs ' + (hasVal ? 'btn-ghost' : 'btn-primary') + '" data-a="enterGroupScore" data-gid="' + group.id + '" data-pid="' + pid + '" style="min-width:34px;padding:3px 4px;font-size:11px">' + (isNA ? '—' : hasVal ? ((Number(inp) >= 0 ? '+' : '') + inp) : '+') + '</button></td>';
@@ -1397,7 +1397,7 @@ function buildGroups() {
         html += renderGroupGameTable(activeGame, group, {isCurrent:true, showCurrent:showCurrentRound, curRoundNum:currentRoundNum});
         if (showCurrentRound) {
           const scoredCount = group.participantIds.filter(pid => {
-            const inp = S.roundInputs[pid];
+            const inp = (S.roundInputs[activeGame?.id]||{})[pid];
             return inp !== undefined && inp !== '';
           }).length;
           const totalCount = group.participantIds.length;
@@ -1667,7 +1667,7 @@ function buildActiveScorecardView(game) {
   const cum = cumulative(game);
   const target = ss4scv.pointsToWin;
   const over = gameIsOver(game);
-  const round = S.roundInputs;
+  const round = S.roundInputs[game.id] || {};
 
   // Check which players have input for current round
   const hasRoundInput = pid => round[pid] !== undefined && round[pid] !== '';
@@ -1860,15 +1860,15 @@ function buildScoreModal() {
 
   let curVal, isNA, total, roundLabel;
   if (editRound !== undefined && game) {
-    // Use roundInputs[pid] since doOpenEditScoreModal pre-seeds it
-    curVal = S.roundInputs[pid];
+    // Use roundInputs[game.id][pid] since doOpenEditScoreModal pre-seeds it
+    curVal = (S.roundInputs[game?.id]||{})[pid];
     isNA = curVal === 'NA';
     // Running total up to the round before this one
     const prevTotal = editRound > 0 ? ((cum[pid]||[])[editRound-1] || 0) : 0;
     total = prevTotal;
     roundLabel = `Round ${editRound + 1}`;
   } else {
-    curVal = S.roundInputs[pid];
+    curVal = (S.roundInputs[game?.id]||{})[pid];
     isNA = curVal === 'NA';
     total = sc.length ? sc[sc.length-1] : 0;
     roundLabel = null;
@@ -2999,7 +2999,7 @@ function doStartGame(gid) {
   const existing=activeGameForGroup(gid);
   if(existing){render();return;}
   S.games.push({id:uid(),groupId:gid,stageId:group.stageId,participantIds:[...group.participantIds],rounds:[],completed:false,winnerId:null,startTime:Date.now()});
-  upd({roundInputs:{}});
+  save(); render();
 }
 function doOpenScoreModal(pid) {
   upd({scoringModal:{pid}});
@@ -3010,61 +3010,86 @@ function doOpenScoreModal(pid) {
 }
 function doOpenEditScoreModal(pid, roundIdx) {
   const game = activeGameForGroup(S.activeGroupId);
-  const existing = game?.rounds[roundIdx]?.[pid];
-  // Pre-seed roundInputs so the N/A toggle has a starting state
+  if (!game) return;
+  const gid = game.id;
+  const existing = game.rounds[roundIdx]?.[pid];
+  // Pre-seed roundInputs for this game so the N/A toggle has a starting state
   const seed = existing === 'NA' ? 'NA' : (existing !== undefined ? existing : '');
-  upd({scoringModal:{pid, editRound: roundIdx}, roundInputs:{...S.roundInputs, [pid]: seed}});
+  upd({scoringModal:{pid, editRound: roundIdx}, roundInputs:{...S.roundInputs, [gid]: {...(S.roundInputs[gid]||{}), [pid]: seed}}});
   setTimeout(()=>{
     const inp=document.getElementById('score-inp');
     if(inp){inp.focus();inp.select();}
   },50);
 }
 function doToggleNA(pid) {
-  const cur=S.roundInputs[pid];
-  if(cur==='NA'){
-    const {[pid]:_,...rest}=S.roundInputs;
-    upd({roundInputs:rest});
-  } else {
-    upd({roundInputs:{...S.roundInputs,[pid]:'NA'}});
-  }
+  const gid = activeGameForGroup(S.activeGroupId)?.id;
+  if (!gid) return;
+  const cur = (S.roundInputs[gid]||{})[pid];
+  const slot = {...(S.roundInputs[gid]||{})};
+  if (cur === 'NA') { delete slot[pid]; } else { slot[pid] = 'NA'; }
+  upd({roundInputs:{...S.roundInputs, [gid]: slot}});
 }
 function doSaveScore(pid) {
-  if(!pid) return;
+  if (!pid) return;
   const editRound = S.scoringModal?.editRound;
+  const game = activeGameForGroup(S.activeGroupId);
+  const gid = game?.id;
 
   if (editRound !== undefined) {
-    // Editing a past round
-    const game = activeGameForGroup(S.activeGroupId);
     if (!game || !game.rounds[editRound]) { upd({scoringModal:null}); return; }
-    const isNA = S.roundInputs[pid] === 'NA';
+    const isNA = (S.roundInputs[gid]||{})[pid] === 'NA';
     const inp = document.getElementById('score-inp');
     const val = inp ? inp.value.trim() : '';
     if (!isNA && val === '') { alert('Enter a score or mark N/A.'); return; }
-    game.rounds[editRound][pid] = isNA ? 'NA' : (parseInt(val) || 0);
+    const newVal = isNA ? 'NA' : (parseInt(val) || 0);
+    game.rounds[editRound][pid] = newVal;
     upd({scoringModal: null});
+    // Transactionally persist the edited round value
+    mutateGameTx(gid, g => { if (g.rounds[editRound]) g.rounds[editRound][pid] = newVal; });
     return;
   }
 
-  const isNA=S.roundInputs[pid]==='NA';
-  if(isNA){
-    upd({scoringModal:null});
-    return;
-  }
-  const inp=document.getElementById('score-inp');
-  const val=inp?inp.value.trim():'';
-  if(val===''){alert('Enter a score or mark N/A.');return;}
-  upd({roundInputs:{...S.roundInputs,[pid]:parseInt(val)||0}, scoringModal:null});
+  if (!gid) return;
+  const isNA = (S.roundInputs[gid]||{})[pid] === 'NA';
+  if (isNA) { upd({scoringModal: null}); return; }
+  const inp = document.getElementById('score-inp');
+  const val = inp ? inp.value.trim() : '';
+  if (val === '') { alert('Enter a score or mark N/A.'); return; }
+  upd({roundInputs:{...S.roundInputs, [gid]: {...(S.roundInputs[gid]||{}), [pid]: parseInt(val)||0}}, scoringModal:null});
 }
+// Atomically mutate one game in Firestore using a transaction (read-latest → apply → write).
+// Prevents lost updates when multiple devices save concurrently.
+async function mutateGameTx(gameId, fn) {
+  if (!S.tournamentId) return;
+  const ref = db.collection('tournaments').doc(S.tournamentId);
+  await db.runTransaction(async tx => {
+    const doc = await tx.get(ref);
+    if (!doc.exists) return;
+    const games = JSON.parse(JSON.stringify(doc.data().games || []));
+    const g = games.find(g => g.id === gameId);
+    if (!g) return;
+    fn(g);
+    tx.update(ref, { games });
+  }).catch(e => console.error('mutateGameTx error:', e));
+}
+
 function doSubmitRound(gameid) {
-  const game=getGame(gameid);
-  if(!game) return;
-  const round={};
-  game.participantIds.forEach(pid=>{
-    const v=S.roundInputs[pid];
-    round[pid]=v==='NA'?'NA':(Number(v)||0);
+  const game = getGame(gameid);
+  if (!game) return;
+  const inputs = S.roundInputs[gameid] || {};
+  const round = {};
+  game.participantIds.forEach(pid => {
+    const v = inputs[pid];
+    round[pid] = v === 'NA' ? 'NA' : (Number(v) || 0);
   });
+  // Optimistic local update for instant UI feedback
   game.rounds.push(round);
-  upd({roundInputs:{}});
+  const newInputs = {...S.roundInputs};
+  delete newInputs[gameid];
+  S.roundInputs = newInputs;
+  render();
+  // Transactional Firestore write — reads latest, pushes round, writes back (no lost updates)
+  mutateGameTx(gameid, g => { g.rounds.push(round); });
 }
 // Create next-round groups + auto-started games for one collection's worth of sourceGroups.
 // colKey is used for the deduplication guard and group naming.
@@ -3163,7 +3188,11 @@ function doCompleteGame(gameid) {
     }
   }
 
-  upd({roundInputs:{}});
+  // Clear only this game's inputs (leave other games' in-progress inputs intact)
+  const newInputs = {...S.roundInputs};
+  delete newInputs[gameid];
+  S.roundInputs = newInputs;
+  save(); render();
 }
 function doEndGame(gameid) {
   if(!confirm('End this game early? The player with the most points wins.')) return;
