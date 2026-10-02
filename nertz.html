@@ -499,7 +499,23 @@ function gameWinnerId(game) {
     const sc = cum[pid]||[];
     return (sc.length ? sc[sc.length-1] : 0) === max;
   });
-  return tied.length === 1 ? tied[0] : null; // null = tie
+  return tied.length === 1 ? tied[0] : null; // null = tie (multiple winners)
+}
+
+// Returns all players who share the top score (the tied co-winners).
+// Used to credit each tied player with a win in stats.
+function gameTiedWinnerIds(game) {
+  const cum = cumulative(game);
+  let max = -Infinity;
+  game.participantIds.forEach(pid => {
+    const sc = cum[pid]||[];
+    const total = sc.length ? sc[sc.length-1] : 0;
+    if (total > max) max = total;
+  });
+  return game.participantIds.filter(pid => {
+    const sc = cum[pid]||[];
+    return (sc.length ? sc[sc.length-1] : 0) === max;
+  });
 }
 
 function gameIsOver(game) {
@@ -512,6 +528,17 @@ function gameIsOver(game) {
   });
 }
 
+function creditWins(stats, game) {
+  // On a clear win, credit one player. On a tie, credit all tied players with 1 win each.
+  if (game.winnerId) {
+    if (stats[game.winnerId]) stats[game.winnerId].gamesWon++;
+  } else {
+    gameTiedWinnerIds(game).forEach(pid => {
+      if (stats[pid]) stats[pid].gamesWon++;
+    });
+  }
+}
+
 function allStats() {
   const stats = {};
   S.participants.forEach(p => { stats[p.id] = {totalPoints:0, gamesWon:0, gamesPlayed:0}; });
@@ -520,8 +547,8 @@ function allStats() {
       if (!stats[pid]) stats[pid] = {totalPoints:0, gamesWon:0, gamesPlayed:0};
       stats[pid].gamesPlayed++;
       stats[pid].totalPoints += playerRoundTotal(game, pid);
-      if (game.winnerId === pid) stats[pid].gamesWon++;
     });
+    creditWins(stats, game);
   });
   return stats;
 }
@@ -536,8 +563,8 @@ function stageStats(stageId) {
       if (!stats[pid]) stats[pid] = {totalPoints:0, gamesWon:0, gamesPlayed:0};
       stats[pid].gamesPlayed++;
       stats[pid].totalPoints += playerRoundTotal(game, pid);
-      if (game.winnerId === pid) stats[pid].gamesWon++;
     });
+    creditWins(stats, game);
   });
   return stats;
 }
@@ -2691,7 +2718,9 @@ function catchupPlayerAdvances(cpid, groupId, stageId, ss) {
   const wins = {}, points = {};
   pids.forEach(pid => { wins[pid] = 0; points[pid] = 0; });
   games.forEach(g => {
-    if (g.winnerId) wins[g.winnerId] = (wins[g.winnerId] || 0) + 1;
+    // Credit wins: on a tie, all tied players each get 1 win
+    const winners = g.winnerId ? [g.winnerId] : gameTiedWinnerIds(g);
+    winners.forEach(pid => { wins[pid] = (wins[pid] || 0) + 1; });
     pids.forEach(pid => { points[pid] = (points[pid] || 0) + playerRoundTotal(g, pid); });
   });
   const cpWins = wins[cpid] || 0, cpPts = points[cpid] || 0;
