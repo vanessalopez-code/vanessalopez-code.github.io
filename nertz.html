@@ -379,6 +379,7 @@ function subscribeToTournament(id) {
           settings: { ...DEF.settings, ...(data.settings||{}) },
           screen: 'home', mode: 'player', scoringModal: null, roundInputs: {}, adminAuthModal: false };
       }
+      fixImproperlyCompletedStages();
       setTimeout(() => loadPhotos(id), 0);
     } else {
       S = { ...S, ...data, tournamentId: id, settings: { ...DEF.settings, ...(data.settings||{}) } };
@@ -389,6 +390,22 @@ function subscribeToTournament(id) {
 
 function playerLibraryKey(name) {
   return name.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+}
+
+// Revert any stage marked complete that doesn't actually have all scores in.
+// Runs on tournament load so legacy data is self-healing.
+function fixImproperlyCompletedStages() {
+  let changed = false;
+  S.stages.forEach(stage => {
+    if (stage.status === 'complete') {
+      const groups = activeGroupsForStage(stage.id);
+      if (groups.length > 0 && !stageIsFullyDone(stage.id)) {
+        stage.status = 'active';
+        changed = true;
+      }
+    }
+  });
+  if (changed) save();
 }
 
 
