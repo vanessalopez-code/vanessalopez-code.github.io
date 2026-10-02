@@ -310,6 +310,7 @@ const DEF = {
   groups: [],
   games: [],
   rules: {},
+  catchupQueue: {},
 };
 
 let S = { ...DEF, settings: { ...DEF.settings } };
@@ -573,15 +574,16 @@ function getStageSettings(stageId) {
 }
 
 // Returns groups in a stage that belong to the current (highest) round.
+// Excludes catch-up groups so they don't interfere with round calculations.
 function activeGroupsForStage(stageId) {
-  const groups = S.groups.filter(g => g.stageId === stageId);
+  const groups = S.groups.filter(g => g.stageId === stageId && !g.isCatchup);
   if (!groups.length) return [];
   const maxRound = Math.max(...groups.map(g => g.round || 1));
   return groups.filter(g => (g.round || 1) === maxRound);
 }
 
 function stageCurrentRound(stageId) {
-  const groups = S.groups.filter(g => g.stageId === stageId);
+  const groups = S.groups.filter(g => g.stageId === stageId && !g.isCatchup);
   if (!groups.length) return 1;
   return Math.max(...groups.map(g => g.round || 1));
 }
@@ -2097,6 +2099,41 @@ function buildAdminStages() {
         ${mode === 'random' && stageGroups.length > 0 && !stageHasGames ? `<div style="padding:8px 14px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)">Tap Re-shuffle to generate a different grouping.</div>` : ''}
         ${stageDone && stage.status !== 'complete' ? `<div style="padding:10px 14px;font-size:13px;color:var(--green);border-top:1px solid var(--border);font-weight:600">✓ All games complete. ${isFinals ? 'Declare the winner!' : 'Ready to advance players to the next stage.'}</div>` : ''}
 
+        ${(() => {
+          const catchupPids = (S.catchupQueue && S.catchupQueue[stage.id]) || [];
+          if (!catchupPids.length) return '';
+          return `<div style="border-top:1px solid var(--border);padding:12px 14px;background:rgba(255,180,0,0.06)">
+            <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">⏳ Catch-up Required</div>
+            ${catchupPids.map(cpid => {
+              const cp = getPart(cpid);
+              if (!cp) return '';
+              // Check if a catch-up game is already running for this player in this stage
+              const catchupGroup = S.groups.find(g => g.stageId === stage.id && g.isCatchup && g.catchupPlayerId === cpid);
+              const catchupGame = catchupGroup ? activeGameForGroup(catchupGroup.id) : null;
+              const catchupDone = catchupGroup ? completedGamesForGroup(catchupGroup.id) : [];
+              if (catchupDone.length) {
+                const lastGame = catchupDone[catchupDone.length - 1];
+                const won = lastGame.winnerId === cpid;
+                return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                  <span style="font-size:13px;font-weight:600">${escH(cp.name)}</span>
+                  <span class="badge ${won?'badge-green':'badge-muted'}">${won?'Advanced':'Eliminated'}</span>
+                </div>`;
+              }
+              if (catchupGame) {
+                return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                  <span style="font-size:13px;font-weight:600">${escH(cp.name)}</span>
+                  <span class="badge badge-blue">Game in progress</span>
+                  <button class="btn btn-ghost btn-xs" data-a="openScorecard" data-gid="${catchupGroup.id}">Score</button>
+                </div>`;
+              }
+              return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <span style="font-size:13px;font-weight:600">${escH(cp.name)}</span>
+                <button class="btn btn-primary btn-xs" data-a="startCatchupGame" data-sid="${stage.id}" data-pid="${cpid}">Start Catch-up Game</button>
+              </div>`;
+            }).join('')}
+          </div>`;
+        })()}
+
         <div style="border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap">
           ${stage.status === 'active' ? `<button class="btn btn-ghost btn-xs" data-a="markStageComplete" data-id="${stage.id}"
               ${!stageDone ? 'disabled style="opacity:0.4;cursor:not-allowed" title="All groups must submit scores first"' : ''}>Mark Complete</button>
@@ -2275,6 +2312,7 @@ function onClick(e) {
     save(); render();
   }
   else if (a==='markStageComplete') { const st=getStage(id); if(st){ if(!stageIsFullyDone(st.id)){alert('All groups must submit scores before marking this stage complete.');return;} st.status='complete';save();render();} }
+  else if (a==='startCatchupGame') { if(sid&&pid) doStartCatchupGame(sid,pid); }
   else if (a==='addGroup') doAddGroup(sid);
   else if (a==='deleteGroup') doDeleteGroup(id);
   else if (a==='reopenGame') doReopenGame(id);
@@ -2392,17 +2430,80 @@ function doAddPlayer() {
   const name=document.getElementById('part-name')?.value.trim();
   if(!name) return;
   const col=document.getElementById('part-col')?.value||null;
-  S.participants.push({id:uid(),name,collectionId:col});
+  const pid=uid();
+  S.participants.push({id:pid,name,collectionId:col});
   const key = playerLibraryKey(name);
   const lib = loadLibraryLS();
   lib[key] = { ...lib[key], name, updatedAt: Date.now() };
   saveLibrary(lib);
+  // Queue for catch-up in any already-complete stages
+  const completedStages = S.stages.filter(st => st.status === 'complete');
+  if (completedStages.length > 0) {
+    if (!S.catchupQueue) S.catchupQueue = {};
+    completedStages.forEach(st => {
+      if (!S.catchupQueue[st.id]) S.catchupQueue[st.id] = [];
+      if (!S.catchupQueue[st.id].includes(pid)) S.catchupQueue[st.id].push(pid);
+    });
+  }
   save(); render();
 }
 function doDeletePlayer(id) {
   S.participants=S.participants.filter(p=>p.id!==id);
   S.groups.forEach(g=>{g.participantIds=g.participantIds.filter(pid=>pid!==id);});
+  // Clean up from catch-up queue
+  if (S.catchupQueue) {
+    Object.keys(S.catchupQueue).forEach(sid => {
+      S.catchupQueue[sid] = S.catchupQueue[sid].filter(pid => pid !== id);
+    });
+  }
   save(); render();
+}
+
+function doStartCatchupGame(stageId, pid) {
+  const stage = getStage(stageId);
+  if (!stage) return;
+  const player = getPart(pid);
+  if (!player) return;
+  // Guard: don't create a second catch-up group if one already exists
+  if (S.groups.some(g => g.stageId === stageId && g.isCatchup && g.catchupPlayerId === pid)) return;
+  // Find collection members (include eliminated) as opponents
+  const collectionId = player.collectionId;
+  let opponents = S.participants.filter(p => p.id !== pid && p.collectionId === collectionId);
+  if (!opponents.length) {
+    // Fall back to any other participant if no collection mates
+    opponents = S.participants.filter(p => p.id !== pid);
+  }
+  const ss = getStageSettings(stageId);
+  const gameSize = ss.gameSize || 4;
+  // Pick random opponents (up to gameSize-1)
+  const shuffled = [...opponents].sort(() => Math.random() - 0.5);
+  const chosen = shuffled.slice(0, gameSize - 1);
+  const pids = [pid, ...chosen.map(p => p.id)];
+  const groupId = uid();
+  S.groups.push({ id: groupId, stageId, round: 999, name: `Catch-up ${player.name}`, participantIds: pids, isCatchup: true, catchupPlayerId: pid });
+  // Start the game immediately
+  S.games.push({ id: uid(), groupId, participantIds: pids, scores: {}, completed: false, startedAt: Date.now() });
+  save(); render();
+}
+
+function advanceCatchupPlayer(pid, stageId) {
+  // Find the next stage after stageId
+  const stageIdx = S.stages.findIndex(s => s.id === stageId);
+  if (stageIdx < 0) return;
+  const nextStage = S.stages[stageIdx + 1];
+  if (!nextStage) return; // was the last stage; no advancement
+  // Add player to an existing group in the next stage, or create a catch-up group
+  const nextGroups = activeGroupsForStage(nextStage.id);
+  if (nextGroups.length > 0) {
+    // Add to the group with the fewest players (additive, no displacement)
+    const target = nextGroups.slice().sort((a, b) => a.participantIds.length - b.participantIds.length)[0];
+    if (!target.participantIds.includes(pid)) target.participantIds.push(pid);
+  } else {
+    // Next stage has no groups yet; create a catch-up placeholder group
+    const groupId = uid();
+    S.groups.push({ id: groupId, stageId: nextStage.id, round: 1, name: `Catch-up Entry`, participantIds: [pid], isCatchup: true, catchupPlayerId: pid });
+  }
+  save();
 }
 function doAddStage() {
   if (S.stages.length > 0) {
@@ -2701,14 +2802,28 @@ function doCompleteGame(gameid) {
   const group = getGroup(game.groupId);
   if (group) {
     const stageId = group.stageId;
-    const ss = getStageSettings(stageId);
-    const gamesPerStage = ss.gamesPerStage || 1;
-    if (gamesPerStage > 1 && ss.shuffleAfterGame) {
-      const currentRound = stageCurrentRound(stageId);
-      if (currentRound < gamesPerStage) {
-        const activeGroups = activeGroupsForStage(stageId);
-        const allDone = activeGroups.every(g => completedGamesForGroup(g.id).length > 0);
-        if (allDone) addNextRoundGroups(stageId, currentRound + 1);
+
+    // Handle catch-up game completion
+    if (group.isCatchup && group.catchupPlayerId) {
+      const cpid = group.catchupPlayerId;
+      // Remove from catch-up queue
+      if (S.catchupQueue && S.catchupQueue[stageId]) {
+        S.catchupQueue[stageId] = S.catchupQueue[stageId].filter(pid => pid !== cpid);
+      }
+      // If catch-up player won, advance them to the next stage
+      if (game.winnerId === cpid) {
+        advanceCatchupPlayer(cpid, stageId);
+      }
+    } else {
+      const ss = getStageSettings(stageId);
+      const gamesPerStage = ss.gamesPerStage || 1;
+      if (gamesPerStage > 1 && ss.shuffleAfterGame) {
+        const currentRound = stageCurrentRound(stageId);
+        if (currentRound < gamesPerStage) {
+          const activeGroups = activeGroupsForStage(stageId);
+          const allDone = activeGroups.every(g => completedGamesForGroup(g.id).length > 0);
+          if (allDone) addNextRoundGroups(stageId, currentRound + 1);
+        }
       }
     }
   }
