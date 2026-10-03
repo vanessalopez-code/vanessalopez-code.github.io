@@ -371,20 +371,22 @@ function subscribeToTournament(id) {
   unsubscribeTournament = db.collection('tournaments').doc(id).onSnapshot(doc => {
     if (!doc.exists) return;
     const data = doc.data();
+    // Strip UI_FIELDS from Firestore data to prevent stale saved UI state from overriding current UI
+    const remoteData = Object.fromEntries(Object.entries(data).filter(([k]) => !UI_FIELDS.has(k)));
     if (isFirst) {
       isFirst = false;
       photoCache = {};
       if (S.tournamentId === id) {
-        S = { ...S, ...data, settings: { ...DEF.settings, ...(data.settings||{}) } };
+        S = { ...S, ...remoteData, settings: { ...DEF.settings, ...(remoteData.settings||{}) } };
       } else {
-        S = { ...DEF, ...data, tournamentId: id,
-          settings: { ...DEF.settings, ...(data.settings||{}) },
+        S = { ...DEF, ...remoteData, tournamentId: id,
+          settings: { ...DEF.settings, ...(remoteData.settings||{}) },
           screen: 'home', mode: 'player', scoringModal: null, roundInputs: {}, adminAuthModal: false };
       }
       fixImproperlyCompletedStages();
       setTimeout(() => loadPhotos(id), 0);
     } else {
-      S = { ...S, ...data, tournamentId: id, settings: { ...DEF.settings, ...(data.settings||{}) } };
+      S = { ...S, ...remoteData, tournamentId: id, settings: { ...DEF.settings, ...(remoteData.settings||{}) } };
     }
     render();
     // Safety net: if all groups in a shuffle stage are done, create the next round
@@ -2447,13 +2449,13 @@ function onClick(e) {
   else if (a==='setMode') upd({mode:v, screen:'home'});
   else if (a==='openAdminAuth') upd({adminAuthModal:true});
   else if (a==='setScreen') upd({screen:v});
-  else if (a==='back') upd({screen:'groups', scoringModal:null, roundInputs:{}});
+  else if (a==='back') { S.screen='groups'; S.scoringModal=null; render(); }
   else if (a==='setAdminTab') { pendingSettings=null; upd({adminTab:v}); }
   else if (a==='setLbSort') upd({lbSort:v});
   else if (a==='setLbStage') upd({lbStage:v});
   else if (a==='setSFilter') upd({stageFilter:v});
-  else if (a==='setPlayerSFilter') upd({playerStageFilter:v, playerGameFilter:null});
-  else if (a==='setPlayerGameFilter') upd({playerGameFilter: Number(v)});
+  else if (a==='setPlayerSFilter') { S.playerStageFilter=v; S.playerGameFilter=null; render(); }
+  else if (a==='setPlayerGameFilter') { S.playerGameFilter=Number(v); render(); }
   else if (a==='setSetting') {
     let val=v;
     if(v==='true') val=true; else if(v==='false') val=false; else if(!isNaN(+v)) val=+v;
@@ -2545,7 +2547,7 @@ function onClick(e) {
   else if (a==='generateFinals') doGenerateFinals(sid);
   else if (a==='addToGroup') doAddToGroup(gid);
   else if (a==='removeFromGroup') doRemoveFromGroup(gid,pid);
-  else if (a==='openScorecard') upd({activeGroupId:gid, screen:'scorecard', roundInputs:{}});
+  else if (a==='openScorecard') { S.activeGroupId=gid; S.screen='scorecard'; render(); }
   else if (a==='startGame') doStartGame(gid);
   else if (a==='startGroupGame') { S.activeGroupId = gid; doStartGame(gid); }
   else if (a==='enterGroupScore') { S.activeGroupId = gid; doOpenScoreModal(pid); }
@@ -3158,41 +3160,39 @@ function checkAndTriggerShuffles() {
 function doCompleteGame(gameid) {
   const game=getGame(gameid);
   if(!game) return;
-  game.winnerId=gameWinnerId(game);
-  game.completed=true;
-
-  const group = getGroup(game.groupId);
-  if (group) {
-    const stageId = group.stageId;
-
-    // Handle catch-up game completion
-    if (group.isCatchup && group.catchupPlayerId) {
-      const cpid = group.catchupPlayerId;
-      const ss = getStageSettings(stageId);
-      const gamesPerStage = ss.gamesPerStage || 1;
-      const allDoneGames = S.games.filter(g => g.groupId === game.groupId && g.completed);
-      if (allDoneGames.length >= gamesPerStage) {
-        // Series complete — remove from catch-up queue
-        if (S.catchupQueue && S.catchupQueue[stageId]) {
-          S.catchupQueue[stageId] = S.catchupQueue[stageId].filter(pid => pid !== cpid);
-        }
-        // Advance if catch-up player won the series
-        if (catchupPlayerAdvances(cpid, game.groupId, stageId, ss)) {
-          advanceCatchupPlayer(cpid, stageId);
-        }
-      }
-      // If fewer games done than required, nothing else to do yet
-    } else {
-      // Check if all current shuffle-round groups are done and we need the next round
-      checkAndTriggerShuffles();
-    }
-  }
+  const winnerId = gameWinnerId(game);
+  game.winnerId = winnerId;
+  game.completed = true;
 
   // Clear only this game's inputs (leave other games' in-progress inputs intact)
   const newInputs = {...S.roundInputs};
   delete newInputs[gameid];
   S.roundInputs = newInputs;
-  save(); render();
+
+  const group = getGroup(game.groupId);
+  if (group && group.isCatchup && group.catchupPlayerId) {
+    // Catch-up game completion — needs full save for catchupQueue and advancement
+    const cpid = group.catchupPlayerId;
+    const stageId = group.stageId;
+    const ss = getStageSettings(stageId);
+    const gamesPerStage = ss.gamesPerStage || 1;
+    const allDoneGames = S.games.filter(g => g.groupId === game.groupId && g.completed);
+    if (allDoneGames.length >= gamesPerStage) {
+      if (S.catchupQueue && S.catchupQueue[stageId]) {
+        S.catchupQueue[stageId] = S.catchupQueue[stageId].filter(pid => pid !== cpid);
+      }
+      if (catchupPlayerAdvances(cpid, game.groupId, stageId, ss)) {
+        advanceCatchupPlayer(cpid, stageId);
+      }
+    }
+    save(); render();
+  } else {
+    // Normal game completion — use transaction so we only update 'games', not 'groups'.
+    // This prevents overwriting round-2 groups that another device may have just created.
+    render();
+    mutateGameTx(gameid, g => { g.completed = true; g.winnerId = winnerId; });
+    // checkAndTriggerShuffles runs via onSnapshot setTimeout after the transaction lands.
+  }
 }
 function doEndGame(gameid) {
   if(!confirm('End this game early? The player with the most points wins.')) return;
