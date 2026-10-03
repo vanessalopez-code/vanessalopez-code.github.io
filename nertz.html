@@ -1309,6 +1309,7 @@ function buildGroups() {
   // In shuffle mode with multiple games per stage, show a Game selector
   let selectedRound = 1;
   if (ss.shuffleAfterGame && (ss.gamesPerStage || 1) > 1) {
+    const gamesPerStage = ss.gamesPerStage || 1;
     const allStageGroups = S.groups.filter(g => g.stageId === selectedSid && !g.isCatchup);
     const allRounds = [...new Set(allStageGroups.map(g => g.round || 1))].sort((a, b) => a - b);
     // Default: lowest round that has any active or pending group
@@ -1319,13 +1320,16 @@ function buildGroups() {
     // Use saved filter only if it's a valid round that exists
     const saved = S.playerGameFilter;
     selectedRound = (saved && allRounds.includes(saved)) ? saved : firstOpenRound;
-    if (allRounds.length > 1) {
-      html += `<div class="stage-filter" style="margin-top:-8px">
-        ${allRounds.map(r => {
-          const hasOpen = allStageGroups.filter(g => (g.round||1)===r).some(g => groupStatus(g.id,selectedSid)!=='final');
-          return `<button class="sf-btn ${selectedRound===r?'active':''}" data-a="setPlayerGameFilter" data-v="${r}">Game ${r}${hasOpen?' ●':''}</button>`;
-        }).join('')}
-      </div>`;
+    if (allRounds.length > 0) {
+      const roundBtns = allRounds.map(r => {
+        const hasOpen = allStageGroups.filter(g => (g.round||1)===r).some(g => groupStatus(g.id,selectedSid)!=='final');
+        return `<button class="sf-btn ${selectedRound===r?'active':''}" data-a="setPlayerGameFilter" data-v="${r}">Game ${r}${hasOpen?' ●':''}</button>`;
+      });
+      // Placeholder buttons for rounds not yet created (so users can see they're coming)
+      for (let r = allRounds.length + 1; r <= gamesPerStage; r++) {
+        roundBtns.push(`<button class="sf-btn" style="opacity:0.4;cursor:default" disabled>Game ${r} ⏳</button>`);
+      }
+      html += `<div class="stage-filter" style="margin-top:-8px">${roundBtns.join('')}</div>`;
     }
   }
 
@@ -1335,7 +1339,13 @@ function buildGroups() {
     : activeGroupsForStage(selectedSid);
 
   if (!stageGroups.length) {
-    html += `<div class="empty"><div class="empty-icon">🃏</div><p>No groups in this stage yet.</p></div>`;
+    const stageIdx = S.stages.findIndex(s => s.id === selectedSid);
+    const prevStage = stageIdx > 0 ? S.stages[stageIdx - 1] : null;
+    const prevDone = prevStage ? stageIsFullyDone(prevStage.id) : true;
+    const waitMsg = prevStage && !prevDone
+      ? `Waiting for <strong>${escH(prevStage.name)}</strong> to finish. Players will be assigned here once scores are submitted and the stage is advanced.`
+      : `No groups set up yet. Ask the admin to assign players to groups for this stage.`;
+    html += `<div class="empty"><div class="empty-icon">🃏</div><p>${waitMsg}</p></div>`;
     return html;
   }
 
@@ -2361,6 +2371,7 @@ function buildAdminStages() {
           ${stage.status === 'active' ? `<button class="btn btn-ghost btn-xs" data-a="markStageComplete" data-id="${stage.id}"
               ${!stageDone ? 'disabled style="opacity:0.4;cursor:not-allowed" title="All groups must submit scores first"' : ''}>Mark Complete</button>
               ${!stageDone ? `<span style="font-size:11px;color:var(--muted)">All groups must submit scores first</span>` : ''}` : ''}
+          ${ss.shuffleAfterGame && (gpsA > 1) && stage.status !== 'complete' ? `<button class="btn btn-ghost btn-xs" data-a="forceTriggerRounds" data-sid="${stage.id}" title="Manually trigger next-round group creation if it didn't happen automatically">↻ Trigger Next Round</button>` : ''}
           <button class="btn btn-danger btn-xs" data-a="deleteStage" data-id="${stage.id}">Delete Stage</button>
         </div>
       </div>`;
@@ -2537,6 +2548,7 @@ function onClick(e) {
     save(); render();
   }
   else if (a==='markStageComplete') { const st=getStage(id); if(st){ if(!stageIsFullyDone(st.id)){alert('All groups must submit scores before marking this stage complete.');return;} st.status='complete';save();render();} }
+  else if (a==='forceTriggerRounds') { checkAndTriggerShuffles(); render(); }
   else if (a==='startCatchupGame') { if(sid&&pid) doStartCatchupGame(sid,pid); }
   else if (a==='startNextCatchupGame') { if(gid) doStartNextCatchupGame(gid); }
   else if (a==='addGroup') doAddGroup(sid);
