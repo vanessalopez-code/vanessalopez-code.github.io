@@ -1320,7 +1320,7 @@ function buildGroups() {
     // Use saved filter only if it's a valid round that exists
     const saved = S.playerGameFilter;
     selectedRound = (saved && allRounds.includes(saved)) ? saved : firstOpenRound;
-    if (allRounds.length > 0) {
+    if (allRounds.length > 1) {
       const roundBtns = allRounds.map(r => {
         const hasOpen = allStageGroups.filter(g => (g.round||1)===r).some(g => groupStatus(g.id,selectedSid)!=='final');
         return `<button class="sf-btn ${selectedRound===r?'active':''}" data-a="setPlayerGameFilter" data-v="${r}">Game ${r}${hasOpen?' ●':''}</button>`;
