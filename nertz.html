@@ -2446,6 +2446,9 @@ function buildAdminStandings() {
 // =========================================================
 function bindEvents() {
   const app = document.getElementById('app');
+  app.removeEventListener('click', onClick);
+  app.removeEventListener('change', onChange);
+  app.removeEventListener('keydown', onKey);
   app.addEventListener('click', onClick);
   app.addEventListener('change', onChange);
   app.addEventListener('keydown', onKey);
