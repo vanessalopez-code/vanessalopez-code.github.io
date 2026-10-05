@@ -676,6 +676,18 @@ function groupStatus(groupId, stageId) {
   return done.length >= gps ? 'final' : 'active';
 }
 
+// True when every previous-stage group containing any of this group's players is 'final'.
+function prevStageCompleteForGroup(group, stageIdx) {
+  const prevStage = S.stages[stageIdx - 1];
+  const prevGroupIds = new Set();
+  group.participantIds.forEach(pid => {
+    const pg = S.groups.find(g => g.stageId === prevStage.id && !g.isCatchup && g.participantIds.includes(pid));
+    if (pg) prevGroupIds.add(pg.id);
+  });
+  if (!prevGroupIds.size) return true;
+  return [...prevGroupIds].every(gid => groupStatus(gid, prevStage.id) === 'final');
+}
+
 // True when every active group in the stage has completed all required games.
 function stageIsFullyDone(stageId) {
   const groups = activeGroupsForStage(stageId);
@@ -1367,6 +1379,8 @@ function buildGroups() {
 
   html += `<div style="display:flex;flex-direction:column;gap:14px;padding:0 16px 16px;">`;
 
+  const currentStageIdx = S.stages.findIndex(s => s.id === selectedSid);
+
   stageGroups.forEach(group => {
     const activeGame = activeGameForGroup(group.id);
     const doneGames = completedGamesForGroup(group.id);
@@ -1402,9 +1416,17 @@ function buildGroups() {
       </div>`;
 
     if (status === 'pending' && !activeGame && !doneGames.length) {
-      html += `<div style="padding:12px 14px">
-        <button class="btn btn-primary btn-sm" data-a="startGroupGame" data-gid="${group.id}">▶ Start Game</button>
-      </div>`;
+      const prevStageDoneForGroup = currentStageIdx <= 0 || prevStageCompleteForGroup(group, currentStageIdx);
+      if (prevStageDoneForGroup) {
+        html += `<div style="padding:12px 14px">
+          <button class="btn btn-primary btn-sm" data-a="startGroupGame" data-gid="${group.id}">▶ Start Game</button>
+        </div>`;
+      } else {
+        const prevStageName = S.stages[currentStageIdx - 1].name;
+        html += `<div style="padding:10px 14px;font-size:13px;color:var(--muted);line-height:1.5;text-align:center">
+          ⏳ Awaiting completion of ${escH(prevStageName)} games.
+        </div>`;
+      }
     } else {
       // Active game (current round entry)
       if (activeGame) {
