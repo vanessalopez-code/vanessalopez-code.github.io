@@ -65,10 +65,11 @@
     .home-hero-suits .s1 { color: var(--gold); }
     .home-hero-suits .s2 { color: var(--accent); }
     .home-info-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; text-align: center; box-shadow: var(--shadow-xs); }
-    .home-summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; display: flex; gap: 12px; box-shadow: var(--shadow-xs); }
-    .home-summary-icon { font-size: 18px; flex-shrink: 0; padding-top: 1px; }
-    .home-summary-body { flex: 1; display: flex; flex-direction: column; gap: 8px; }
-    .home-summary-body p { font-size: 13px; color: var(--muted); line-height: 1.55; }
+    .home-summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow-xs); }
+    .home-summary-list { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+    .home-summary-list li { font-size: 13px; color: var(--muted); line-height: 1.4; padding-left: 14px; position: relative; }
+    .home-summary-list li::before { content: '·'; position: absolute; left: 0; color: var(--accent); font-weight: 800; }
+    .home-summary-list strong { color: var(--text); font-weight: 700; }
     .home-info-name { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: .04em; }
     .home-info-stat { font-size: 11px; color: var(--muted); margin-top: 3px; }
     .home-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: all 0.12s; box-shadow: var(--shadow-xs); }
@@ -1210,56 +1211,48 @@ function buildRules() {
 
 function buildTournamentSummary() {
   if (!S.stages.length) return [];
-  const paras = [];
+  const bullets = [];
 
-  // Collections sentence
+  // Collections
   const usedColIds = new Set(S.participants.map(p => p.collectionId).filter(Boolean));
   const cols = S.collections.filter(c => usedColIds.has(c.id));
   if (cols.length > 1) {
-    const names = cols.map(c => escH(c.name));
-    const joined = names.length === 2 ? names.join(' and ') : names.slice(0,-1).join(', ') + ', and ' + names[names.length-1];
-    paras.push(`Players are assigned to the ${joined} collections.`);
+    bullets.push(`<strong>Collections:</strong> ${cols.map(c => escH(c.name)).join(' · ')}`);
   }
 
-  // Stages + games per stage
+  // Format: stages + games per stage
   const numStages = S.stages.length;
   const gpsCounts = S.stages.map(s => getStageSettings(s.id).gamesPerStage || 1);
   const allSame = gpsCounts.every(n => n === gpsCounts[0]);
-  const stagesWord = numStages === 1 ? 'stage' : 'stages';
-  if (allSame) {
-    const gps = gpsCounts[0];
-    paras.push(`There ${numStages === 1 ? 'is' : 'are'} ${numStages} ${stagesWord} in the tournament and ${gps} game${gps !== 1 ? 's' : ''} ${gps === 1 ? 'is' : 'are'} played in each stage.`);
-  } else {
-    paras.push(`There are ${numStages} ${stagesWord} in the tournament.`);
-  }
+  const formatLine = allSame
+    ? `${numStages} stage${numStages !== 1 ? 's' : ''} · ${gpsCounts[0]} game${gpsCounts[0] !== 1 ? 's' : ''} per stage`
+    : `${numStages} stage${numStages !== 1 ? 's' : ''}`;
+  bullets.push(`<strong>Format:</strong> ${formatLine}`);
 
-  // Points to win
+  // Win condition
   const pts = S.settings.pointsToWin;
   if (pts) {
-    paras.push(`The player to get to ${pts} points first wins each game. If more than 1 player gets to ${pts} points, the player with the most points wins.`);
+    bullets.push(`<strong>Win condition:</strong> First to ${pts} pts · Tiebreaker: most points`);
   }
 
-  // Per-stage rules
+  // Per-stage advancement
   S.stages.forEach((stage, idx) => {
     const ss = getStageSettings(stage.id);
     const nextStage = S.stages[idx + 1];
     const isLast = idx === S.stages.length - 1;
+    const label = `<strong>${escH(stage.name)}:</strong>`;
     if (isLast || ss.isFinal) {
-      if (S.stages.length > 1) {
-        const fromWhere = ss.mixCollections ? 'from all collections' : 'from each collection';
-        paras.push(`In ${escH(stage.name)}, the top players ${fromWhere} will compete for the overall win.`);
-      }
+      const from = ss.mixCollections ? 'all collections' : 'each collection';
+      bullets.push(`${label} Finals · Top players from ${from} compete`);
     } else {
       const n = ss.advancersPerCollection || 1;
-      const advStr = n === 1 ? 'top player' : `top ${n} players`;
-      const perWhat = ss.mixCollections ? 'overall' : 'from each collection';
-      const nextName = nextStage ? escH(nextStage.name) : 'the next stage';
-      const playTogether = !ss.mixCollections ? ' to play one another' : '';
-      paras.push(`In ${escH(stage.name)}, the ${advStr} ${perWhat} will advance to ${nextName}${playTogether}. Ties will both advance.`);
+      const per = ss.mixCollections ? 'overall' : 'per collection';
+      const nextName = nextStage ? escH(nextStage.name) : 'next stage';
+      bullets.push(`${label} Top ${n} ${per} advance to ${nextName} · Ties included`);
     }
   });
 
-  return paras;
+  return bullets;
 }
 
 function buildHome() {
@@ -1278,11 +1271,10 @@ function buildHome() {
       <div class="home-info-stat">${statText}</div>
     </div>
     ${(() => {
-      const paras = buildTournamentSummary();
-      if (!paras.length) return '';
+      const bullets = buildTournamentSummary();
+      if (!bullets.length) return '';
       return `<div class="home-summary-card">
-        <div class="home-summary-icon">📋</div>
-        <div class="home-summary-body">${paras.map(p => `<p>${p}</p>`).join('')}</div>
+        <ul class="home-summary-list">${bullets.map(b => `<li>${b}</li>`).join('')}</ul>
       </div>`;
     })()}
     <div class="home-card" data-a="setScreen" data-v="groups">
