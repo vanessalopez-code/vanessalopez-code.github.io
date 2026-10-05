@@ -1280,7 +1280,7 @@ function renderGroupGameTable(g, group, opts) {
       }
     });
     if (showCurrent) {
-      var inp = (S.roundInputs[activeGame?.id]||{})[pid];
+      var inp = (S.roundInputs[g?.id]||{})[pid];
       var hasVal = inp !== undefined && inp !== '';
       var isNA = inp === 'NA';
       t += '<td style="text-align:center;padding:3px 2px"><button class="btn btn-xs ' + (hasVal ? 'btn-ghost' : 'btn-primary') + '" data-a="enterGroupScore" data-gid="' + group.id + '" data-pid="' + pid + '" style="min-width:34px;padding:3px 4px;font-size:11px">' + (isNA ? '—' : hasVal ? ((Number(inp) >= 0 ? '+' : '') + inp) : '+') + '</button></td>';
