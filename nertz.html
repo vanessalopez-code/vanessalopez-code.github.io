@@ -681,8 +681,8 @@ function prevStageCompleteForGroup(group, stageIdx) {
   const prevStage = S.stages[stageIdx - 1];
   const prevGroupIds = new Set();
   group.participantIds.forEach(pid => {
-    const pg = S.groups.find(g => g.stageId === prevStage.id && !g.isCatchup && g.participantIds.includes(pid));
-    if (pg) prevGroupIds.add(pg.id);
+    S.groups.filter(g => g.stageId === prevStage.id && !g.isCatchup && g.participantIds.includes(pid))
+      .forEach(pg => prevGroupIds.add(pg.id));
   });
   if (!prevGroupIds.size) return true;
   return [...prevGroupIds].every(gid => groupStatus(gid, prevStage.id) === 'final');
