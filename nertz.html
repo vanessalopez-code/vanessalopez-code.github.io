@@ -65,6 +65,10 @@
     .home-hero-suits .s1 { color: var(--gold); }
     .home-hero-suits .s2 { color: var(--accent); }
     .home-info-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; text-align: center; box-shadow: var(--shadow-xs); }
+    .home-summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; display: flex; gap: 12px; box-shadow: var(--shadow-xs); }
+    .home-summary-icon { font-size: 18px; flex-shrink: 0; padding-top: 1px; }
+    .home-summary-body { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .home-summary-body p { font-size: 13px; color: var(--muted); line-height: 1.55; }
     .home-info-name { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: .04em; }
     .home-info-stat { font-size: 11px; color: var(--muted); margin-top: 3px; }
     .home-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: all 0.12s; box-shadow: var(--shadow-xs); }
@@ -1204,6 +1208,60 @@ function buildRules() {
     </div>`;
 }
 
+function buildTournamentSummary() {
+  if (!S.stages.length) return [];
+  const paras = [];
+
+  // Collections sentence
+  const usedColIds = new Set(S.participants.map(p => p.collectionId).filter(Boolean));
+  const cols = S.collections.filter(c => usedColIds.has(c.id));
+  if (cols.length > 1) {
+    const names = cols.map(c => escH(c.name));
+    const joined = names.length === 2 ? names.join(' and ') : names.slice(0,-1).join(', ') + ', and ' + names[names.length-1];
+    paras.push(`Players are assigned to the ${joined} collections.`);
+  }
+
+  // Stages + games per stage
+  const numStages = S.stages.length;
+  const gpsCounts = S.stages.map(s => getStageSettings(s.id).gamesPerStage || 1);
+  const allSame = gpsCounts.every(n => n === gpsCounts[0]);
+  const stagesWord = numStages === 1 ? 'stage' : 'stages';
+  if (allSame) {
+    const gps = gpsCounts[0];
+    paras.push(`There ${numStages === 1 ? 'is' : 'are'} ${numStages} ${stagesWord} in the tournament and ${gps} game${gps !== 1 ? 's' : ''} ${gps === 1 ? 'is' : 'are'} played in each stage.`);
+  } else {
+    paras.push(`There are ${numStages} ${stagesWord} in the tournament.`);
+  }
+
+  // Points to win
+  const pts = S.settings.pointsToWin;
+  if (pts) {
+    paras.push(`The player to get to ${pts} points first wins each game. If more than 1 player gets to ${pts} points, the player with the most points wins.`);
+  }
+
+  // Per-stage rules
+  S.stages.forEach((stage, idx) => {
+    const ss = getStageSettings(stage.id);
+    const nextStage = S.stages[idx + 1];
+    const isLast = idx === S.stages.length - 1;
+    if (isLast || ss.isFinal) {
+      if (S.stages.length > 1) {
+        const fromWhere = ss.mixCollections ? 'from all collections' : 'from each collection';
+        paras.push(`In ${escH(stage.name)}, the top players ${fromWhere} will compete for the overall win.`);
+      }
+    } else {
+      const n = ss.advancersPerCollection || 1;
+      const advStr = n === 1 ? 'top player' : `top ${n} players`;
+      const perWhat = ss.mixCollections ? 'overall' : 'from each collection';
+      const nextName = nextStage ? escH(nextStage.name) : 'the next stage';
+      const playTogether = !ss.mixCollections ? ' to play one another' : '';
+      paras.push(`In ${escH(stage.name)}, the ${advStr} ${perWhat} will advance to ${nextName}${playTogether}. Ties will both advance.`);
+    }
+  });
+
+  return paras;
+}
+
 function buildHome() {
   const totalGames = S.games.filter(g=>g.completed).length;
   const activeGames = S.games.filter(g=>!g.completed).length;
@@ -1219,6 +1277,14 @@ function buildHome() {
       <div class="home-info-name">${escH(S.tournamentName || "Vanessa's 40th")}</div>
       <div class="home-info-stat">${statText}</div>
     </div>
+    ${(() => {
+      const paras = buildTournamentSummary();
+      if (!paras.length) return '';
+      return `<div class="home-summary-card">
+        <div class="home-summary-icon">📋</div>
+        <div class="home-summary-body">${paras.map(p => `<p>${p}</p>`).join('')}</div>
+      </div>`;
+    })()}
     <div class="home-card" data-a="setScreen" data-v="groups">
       <div class="home-card-icon">${navIconGroups(28)}</div>
       <div class="home-card-body">
