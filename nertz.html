@@ -3099,14 +3099,9 @@ function doGenerateFinals(sid) {
     }
   });
   const ssF = getStageSettings(sid);
-  const size = ssF.gameSize;
   const newGroups = [];
-  const groupSizes = distributeGroups(finalists.length, size, ssF.minGroupSize || 1);
-  let pos = 0;
-  groupSizes.forEach(sz => {
-    const chunk = finalists.slice(pos, pos + sz); pos += sz;
-    newGroups.push({ id: uid(), stageId: sid, round: 1, name: newGroups.length === 0 ? 'Finals' : `Finals Group ${newGroups.length + 1}`, participantIds: chunk });
-  });
+  // All finalists play together in one group — ignore max group size for the final stage
+  newGroups.push({ id: uid(), stageId: sid, round: 1, name: 'Finals', participantIds: finalists });
   S.groups = S.groups.filter(g => g.stageId !== sid).concat(newGroups);
   save(); render();
 }
