@@ -66,6 +66,8 @@
     .home-hero-suits .s2 { color: var(--accent); }
     .home-info-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; text-align: center; box-shadow: var(--shadow-xs); }
     .home-summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow-xs); }
+    .home-summary-hdr { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .home-summary-title { font-size: 15px; font-weight: 800; letter-spacing: .01em; }
     .home-summary-list { list-style: none; display: flex; flex-direction: column; gap: 9px; }
     .home-summary-list li { font-size: 13px; color: var(--muted); line-height: 1.4; padding-left: 14px; position: relative; }
     .home-summary-list li::before { content: '·'; position: absolute; left: 0; color: var(--accent); font-weight: 800; }
@@ -1014,6 +1016,13 @@ function navIconRules(size=24) {
     <line x1="8" y1="17" x2="14" y2="17" stroke="var(--surface)" stroke-width="1.5" stroke-linecap="round"/>
   </svg>`;
 }
+function navIconInfo(size=24) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="12" cy="12" r="10"/>
+    <rect x="11" y="10" width="2" height="7" rx="1" fill="var(--surface)"/>
+    <circle cx="12" cy="7.5" r="1.3" fill="var(--surface)"/>
+  </svg>`;
+}
 
 function rulesText(section) {
   return (S.rules && S.rules[section]) ? S.rules[section] : DEFAULT_RULES[section];
@@ -1212,43 +1221,39 @@ function buildRules() {
 function buildTournamentSummary() {
   if (!S.stages.length) return [];
   const bullets = [];
-
-  // Collections
-  const usedColIds = new Set(S.participants.map(p => p.collectionId).filter(Boolean));
-  const cols = S.collections.filter(c => usedColIds.has(c.id));
-  if (cols.length > 1) {
-    bullets.push(`<strong>Collections:</strong> ${cols.map(c => escH(c.name)).join(' · ')}`);
-  }
-
-  // Format: stages + games per stage
-  const numStages = S.stages.length;
-  const gpsCounts = S.stages.map(s => getStageSettings(s.id).gamesPerStage || 1);
-  const allSame = gpsCounts.every(n => n === gpsCounts[0]);
-  const formatLine = allSame
-    ? `${numStages} stage${numStages !== 1 ? 's' : ''} · ${gpsCounts[0]} game${gpsCounts[0] !== 1 ? 's' : ''} per stage`
-    : `${numStages} stage${numStages !== 1 ? 's' : ''}`;
-  bullets.push(`<strong>Format:</strong> ${formatLine}`);
-
-  // Win condition
   const pts = S.settings.pointsToWin;
+  const stage1 = S.stages[0];
+  const ss1 = getStageSettings(stage1.id);
+  const gps1 = ss1.gamesPerStage || 1;
+
+  bullets.push('Click <strong>Groups</strong> to find your first group assignment.');
+
   if (pts) {
-    bullets.push(`<strong>Win condition:</strong> First to ${pts} pts · Tiebreaker: most points`);
+    bullets.push(`In each game, unlimited rounds are played until a player reaches at least <strong>${pts} points</strong>.`);
   }
 
-  // Per-stage advancement
+  if (ss1.shuffleAfterGame) {
+    bullets.push('After each game, you will be assigned to a new group to play.');
+  }
+
+  if (gps1 > 1) {
+    bullets.push(`Each player plays <strong>${gps1} games</strong> in ${escH(stage1.name)}.`);
+  }
+
   S.stages.forEach((stage, idx) => {
     const ss = getStageSettings(stage.id);
     const nextStage = S.stages[idx + 1];
     const isLast = idx === S.stages.length - 1;
-    const label = `<strong>${escH(stage.name)}:</strong>`;
     if (isLast || ss.isFinal) {
-      const from = ss.mixCollections ? 'all collections' : 'each collection';
-      bullets.push(`${label} Finals · Top players from ${from} compete`);
-    } else {
+      const gps = ss.gamesPerStage || 1;
+      bullets.push(`The top players will play <strong>${gps} game${gps !== 1 ? 's' : ''}</strong> for the championship win.`);
+    } else if (nextStage) {
       const n = ss.advancersPerCollection || 1;
-      const per = ss.mixCollections ? 'overall' : 'per collection';
-      const nextName = nextStage ? escH(nextStage.name) : 'next stage';
-      bullets.push(`${label} Top ${n} ${per} advance to ${nextName} · Ties included`);
+      const nss = getStageSettings(nextStage.id);
+      const ngps = nss.gamesPerStage || 1;
+      const perWhat = ss.mixCollections ? 'overall' : (n === 1 ? 'from each group' : 'from each collection');
+      const topStr = n === 1 ? 'The top player' : `The top <strong>${n} players</strong>`;
+      bullets.push(`${topStr} ${perWhat} will progress to <strong>${escH(nextStage.name)}</strong> and play <strong>${ngps} game${ngps !== 1 ? 's' : ''}</strong> together.`);
     }
   });
 
@@ -1274,6 +1279,10 @@ function buildHome() {
       const bullets = buildTournamentSummary();
       if (!bullets.length) return '';
       return `<div class="home-summary-card">
+        <div class="home-summary-hdr">
+          <div class="home-card-icon" style="color:var(--accent)">${navIconInfo(20)}</div>
+          <div class="home-summary-title">Instructions</div>
+        </div>
         <ul class="home-summary-list">${bullets.map(b => `<li>${b}</li>`).join('')}</ul>
       </div>`;
     })()}
