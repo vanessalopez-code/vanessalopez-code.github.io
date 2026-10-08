@@ -59,6 +59,14 @@
     .home { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
     .home-hero-card { background: linear-gradient(150deg, #1e1b4b 0%, #161b22 55%, #1a2744 100%); border: 1px solid rgba(129,140,248,.25); border-radius: 24px; padding: 32px 24px 28px; position: relative; text-align: center; box-shadow: var(--shadow-md), 0 0 40px rgba(129,140,248,.1); }
     .home-hero-card::before { content: ''; position: absolute; inset: 8px; border: 1px solid rgba(129,140,248,.15); border-radius: 18px; pointer-events: none; }
+    .home-winner-hero { background: linear-gradient(150deg, #1c1407 0%, #2a1c05 45%, #1a1500 100%); border: 1px solid rgba(251,191,36,.35); border-radius: 24px; padding: 32px 24px 28px; position: relative; text-align: center; box-shadow: var(--shadow-md), 0 0 60px rgba(251,191,36,.12); }
+    .home-winner-hero::before { content: ''; position: absolute; inset: 8px; border: 1px solid rgba(251,191,36,.18); border-radius: 18px; pointer-events: none; }
+    .home-winner-trophy { font-size: 52px; line-height: 1; margin-bottom: 10px; filter: drop-shadow(0 0 16px rgba(251,191,36,.5)); }
+    .home-winner-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .24em; text-transform: uppercase; color: rgba(251,191,36,.55); margin-bottom: 6px; }
+    .home-winner-name { font-family: 'Playfair Display', serif; font-size: 40px; font-weight: 700; color: var(--gold); line-height: 1.1; margin: 4px 0 8px; }
+    .home-winner-sub { font-size: 13px; color: rgba(251,191,36,.5); letter-spacing: .06em; }
+    .winner-banner { background: linear-gradient(135deg, rgba(251,191,36,.12), rgba(251,191,36,.05)); border: 1px solid rgba(251,191,36,.3); border-radius: 14px; padding: 14px 16px; text-align: center; font-size: 15px; font-weight: 800; color: var(--gold); }
+    .lb-row-winner { background: rgba(251,191,36,.06); border-left: 3px solid var(--gold); }
     .home-hero-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .24em; text-transform: uppercase; color: var(--muted); line-height: 1.6; }
     .home-hero-title { font-family: 'Playfair Display', serif; font-size: 50px; font-weight: 700; color: var(--accent); margin: 8px 0 12px; line-height: 1.1; }
     .home-hero-suits { font-size: 22px; letter-spacing: 8px; margin: 6px 0 0; }
@@ -707,6 +715,36 @@ function stageEffectiveDone(stage) {
   return stage.status === 'complete' || stageIsFullyDone(stage.id);
 }
 
+// Returns the tournament winner(s) if the final stage is complete, else [].
+function getTournamentWinners() {
+  if (!S.stages.length) return [];
+  const finalStage = S.stages[S.stages.length - 1];
+  if (!stageIsFullyDone(finalStage.id)) return [];
+  const ss = getStageSettings(finalStage.id);
+  const method = ss.advancementMethod || 'wins';
+  const stats = stageStats(finalStage.id);
+  const finalGroupIds = new Set(S.groups.filter(g => g.stageId === finalStage.id && !g.isCatchup).map(g => g.id));
+  const finalPids = [...new Set(S.games.filter(g => finalGroupIds.has(g.groupId)).flatMap(g => g.participantIds))];
+  if (!finalPids.length) return [];
+  const ranked = [...finalPids].sort((a, b) => {
+    const sa = stats[a]||{}, sb = stats[b]||{};
+    return method === 'wins'
+      ? (sb.gamesWon - sa.gamesWon) || (sb.totalPoints - sa.totalPoints)
+      : (sb.totalPoints - sa.totalPoints) || (sb.gamesWon - sa.gamesWon);
+  });
+  const topSt = stats[ranked[0]] || {};
+  const winners = [ranked[0]];
+  for (let i = 1; i < ranked.length; i++) {
+    const st = stats[ranked[i]] || {};
+    const tied = method === 'wins'
+      ? (topSt.gamesWon === st.gamesWon && topSt.totalPoints === st.totalPoints)
+      : (topSt.totalPoints === st.totalPoints && topSt.gamesWon === st.gamesWon);
+    if (tied) winners.push(ranked[i]);
+    else break;
+  }
+  return winners;
+}
+
 // Returns how many complete game cycles have finished in a stage.
 // Shuffle mode: counts completed reshuffle rounds.
 // Keep Group mode: counts completed games at each (fixed) group.
@@ -1267,13 +1305,22 @@ function buildHome() {
   const totalGames = S.games.filter(g=>g.completed).length;
   const activeGames = S.games.filter(g=>!g.completed).length;
   const statText = `${S.stages.length} Stage${S.stages.length!==1?'s':''} · ${totalGames} Game${totalGames!==1?'s':''} Played${activeGames?' · '+activeGames+' Active':''}`;
+  const tournamentWinners = getTournamentWinners();
+  const winnerNames = tournamentWinners.map(pid => getPart(pid)?.name || '?');
   return `<div class="home">
+    ${tournamentWinners.length ? `
+    <div class="home-winner-hero">
+      <div class="home-winner-trophy">🏆</div>
+      <div class="home-winner-eyebrow">Tournament Champion</div>
+      <div class="home-winner-name">${winnerNames.map(escH).join(' &amp; ')}</div>
+      <div class="home-winner-sub">${escH(S.tournamentName || 'Nertz Tournament')}</div>
+    </div>` : `
     <div class="home-hero-card">
       <div class="home-hero-eyebrow">Friends Who</div>
       <div class="home-hero-title">Nertz Together</div>
       <div class="home-hero-eyebrow">Stay Together</div>
       <div class="home-hero-suits"><span class="s1">♥</span> <span class="s2">♦</span> <span class="s1">♠</span> <span class="s2">♣</span></div>
-    </div>
+    </div>`}
     <div class="home-info-card">
       <div class="home-info-name">${escH(S.tournamentName || "Vanessa's 40th")}</div>
       <div class="home-info-stat">${statText}</div>
@@ -1384,9 +1431,15 @@ function buildGroups() {
   const ss = getStageSettings(selectedSid);
   const target = ss.pointsToWin;
 
+  const groupsWinners = getTournamentWinners();
+  const isFinalStageView = S.stages.length && selectedSid === S.stages[S.stages.length - 1].id && groupsWinners.length;
   let html = `<div class="stage-filter">
     ${S.stages.map(st => `<button class="sf-btn ${selectedSid===st.id?'active':''}" data-a="setPlayerSFilter" data-v="${st.id}">${escH(st.name)}</button>`).join('')}
   </div>`;
+  if (isFinalStageView) {
+    const wNames = groupsWinners.map(pid => escH(getPart(pid)?.name || '?')).join(' &amp; ');
+    html += `<div class="winner-banner" style="margin:0 16px">🏆 ${wNames} ${groupsWinners.length > 1 ? 'tie for' : 'wins'} the tournament!</div>`;
+  }
 
   // In shuffle mode with multiple games per stage, show a Game selector
   let selectedRound = 1;
@@ -1658,9 +1711,15 @@ function buildLeaderboard() {
 
   if (!S.participants.length) return `<div class="empty"><div class="empty-icon">📊</div><p>No players yet. Ask the admin to add participants.</p></div>`;
 
+  const lbWinners = getTournamentWinners();
+  const lbWinnerIds = new Set(lbWinners.map(pid => pid));
+  const showWinnerBanner = lbWinners.length > 0 &&
+    (selectedStageId === 'all' || (S.stages.length && selectedStageId === S.stages[S.stages.length - 1].id));
+
   const medals = ['🥇','🥈','🥉'];
   return `
     <div class="section" style="gap:12px">
+      ${showWinnerBanner ? `<div class="winner-banner">🏆 ${lbWinners.map(pid => escH(getPart(pid)?.name||'?')).join(' &amp; ')} ${lbWinners.length > 1 ? 'tie for' : 'wins'} the tournament!</div>` : ''}
       ${S.stages.length > 0 ? `<div class="stage-filter">
         ${S.stages.map(st => `<button class="sf-btn ${selectedStageId===st.id?'active':''}" data-a="setLbStage" data-v="${st.id}">${escH(st.name)}</button>`).join('')}
         <button class="sf-btn ${selectedStageId==='all'?'active':''}" data-a="setLbStage" data-v="all">All Time</button>
@@ -1680,13 +1739,14 @@ function buildLeaderboard() {
                       sortKey==='points' ? `${st.gamesPlayed} played · ${st.gamesWon} wins` :
                       `${st.gamesWon} wins · ${st.totalPoints>=0?'+':''}${st.totalPoints} pts`;
           const lbBg = avatarBg(p.id);
-          return `<div class="lb-row">
-            <div class="lb-rank">${i<3?medals[i]:i+1}</div>
-            <div class="lb-avatar" style="${col&&!lbBg?`border-color:${col.color};color:${col.color};`:''}${lbBg}">
+          const isChamp = showWinnerBanner && lbWinnerIds.has(p.id);
+          return `<div class="lb-row${isChamp?' lb-row-winner':''}">
+            <div class="lb-rank">${isChamp ? '🏆' : i<3?medals[i]:i+1}</div>
+            <div class="lb-avatar" style="${col&&!lbBg?`border-color:${isChamp?'var(--gold)':col.color};color:${isChamp?'var(--gold)':col.color};`:''}${lbBg}">
               ${lbBg?'':escH(initials(p.name))}
             </div>
             <div style="flex:1">
-              <div class="lb-name">${escH(p.name)}</div>
+              <div class="lb-name" style="${isChamp?'color:var(--gold);font-weight:800':''}">${escH(p.name)}${isChamp?' 🏆':''}</div>
               <div style="font-size:11px;color:var(--muted)">${sub}</div>
             </div>
             <div class="lb-stat">
