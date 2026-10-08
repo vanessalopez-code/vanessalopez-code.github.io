@@ -702,6 +702,11 @@ function stageIsFullyDone(stageId) {
   return groups.every(g => groupStatus(g.id, stageId) === 'final');
 }
 
+// True when a stage is done: either explicitly marked complete by admin, or all games finished.
+function stageEffectiveDone(stage) {
+  return stage.status === 'complete' || stageIsFullyDone(stage.id);
+}
+
 // Returns how many complete game cycles have finished in a stage.
 // Shuffle mode: counts completed reshuffle rounds.
 // Keep Group mode: counts completed games at each (fixed) group.
@@ -1291,7 +1296,7 @@ function buildHome() {
         <p>${(() => {
           const active = S.games.filter(g => !g.completed).length;
           const pending = S.groups.filter(g => {
-            const stage = S.stages.find(st => st.id === g.stageId && st.status !== 'complete');
+            const stage = S.stages.find(st => st.id === g.stageId && !stageEffectiveDone(st));
             return stage && !activeGameForGroup(g.id) && !completedGamesForGroup(g.id).length;
           }).length;
           if (active > 0) return `<span style="color:var(--accent);font-weight:700">● ${active} game${active!==1?'s':''} in progress</span>`;
@@ -1372,7 +1377,7 @@ function buildGroups() {
   if (!S.stages.length) return `<div class="empty"><div class="empty-icon">🃏</div><p>No stages set up yet. Ask the admin to configure the tournament.</p></div>`;
 
   // Default to the first stage that isn't complete; fall back to last stage if all are done
-  const firstActive = S.stages.find(st => st.status !== 'complete') || S.stages[S.stages.length - 1];
+  const firstActive = S.stages.find(st => !stageEffectiveDone(st)) || S.stages[S.stages.length - 1];
   const selectedSid = (S.playerStageFilter && S.stages.find(s => s.id === S.playerStageFilter))
     ? S.playerStageFilter : firstActive.id;
   const selectedStage = getStage(selectedSid);
@@ -1421,7 +1426,7 @@ function buildGroups() {
     const stageIdx = S.stages.findIndex(s => s.id === selectedSid);
     const prevStage = stageIdx > 0 ? S.stages[stageIdx - 1] : null;
     let emptyDetail = `<p>No groups in this stage yet — ask the admin to assign players.</p>`;
-    if (prevStage && prevStage.status !== 'complete') {
+    if (prevStage && !stageEffectiveDone(prevStage)) {
       emptyDetail = `<p>${escH(prevStage.name)} is still in progress. Once it's complete the admin will advance players here.</p>`;
     }
     html += `<div class="empty"><div class="empty-icon">🃏</div>${emptyDetail}</div>`;
@@ -1625,7 +1630,7 @@ function buildLeaderboard() {
   const sortKey = S.lbSort;
 
   // Stage filter: default to most recent stage, 'all' for all-time
-  const firstActiveStage = S.stages.find(st => st.status !== 'complete') || S.stages[S.stages.length - 1] || null;
+  const firstActiveStage = S.stages.find(st => !stageEffectiveDone(st)) || S.stages[S.stages.length - 1] || null;
   const selectedStageId = (S.lbStage && S.stages.find(s => s.id === S.lbStage))
     ? S.lbStage
     : (firstActiveStage ? firstActiveStage.id : 'all');
