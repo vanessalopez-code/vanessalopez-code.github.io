@@ -2617,7 +2617,7 @@ function onClick(e) {
   if (a==='setMode' && v==='admin') { upd({adminAuthModal:true}); return; }
   else if (a==='setMode') upd({mode:v, screen:'home'});
   else if (a==='openAdminAuth') upd({adminAuthModal:true});
-  else if (a==='setScreen') upd({screen:v});
+  else if (a==='setScreen') { if (navigator.vibrate) navigator.vibrate(8); upd({screen:v}); }
   else if (a==='back') { S.screen='groups'; S.scoringModal=null; render(); }
   else if (a==='setAdminTab') { pendingSettings=null; upd({adminTab:v}); }
   else if (a==='setLbSort') upd({lbSort:v});
