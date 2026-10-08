@@ -3086,7 +3086,17 @@ function doGenerateFinals(sid) {
         ? (sb.gamesWon-sa.gamesWon)||(sb.totalPoints-sa.totalPoints)
         : (sb.totalPoints-sa.totalPoints)||(sb.gamesWon-sa.gamesWon);
     });
+    // Include the top player and all players tied with them
+    const topSt = stats[ranked[0]] || {};
     finalists.push(ranked[0]);
+    for (let i = 1; i < ranked.length; i++) {
+      const st = stats[ranked[i]] || {};
+      const tied = method === 'wins'
+        ? (topSt.gamesWon === st.gamesWon && topSt.totalPoints === st.totalPoints)
+        : (topSt.totalPoints === st.totalPoints && topSt.gamesWon === st.gamesWon);
+      if (tied) finalists.push(ranked[i]);
+      else break;
+    }
   });
   const ssF = getStageSettings(sid);
   const size = ssF.gameSize;
