@@ -1249,11 +1249,9 @@ function buildTournamentSummary() {
       bullets.push(`The top players will play <strong>${gps} game${gps !== 1 ? 's' : ''}</strong> for the championship win.`);
     } else if (nextStage) {
       const n = ss.advancersPerCollection || 1;
-      const nss = getStageSettings(nextStage.id);
-      const ngps = nss.gamesPerStage || 1;
       const perWhat = ss.mixCollections ? 'overall' : (n === 1 ? 'from each group' : 'from each collection');
       const topStr = n === 1 ? 'The top player' : `The top <strong>${n} players</strong>`;
-      bullets.push(`${topStr} ${perWhat} will progress to <strong>${escH(nextStage.name)}</strong> and play <strong>${ngps} game${ngps !== 1 ? 's' : ''}</strong> together.`);
+      bullets.push(`${topStr} ${perWhat} will progress to <strong>${escH(nextStage.name)}</strong>.`);
     }
   });
 
