@@ -1631,9 +1631,11 @@ function buildLeaderboard() {
 
   // Stage filter: default to most recent stage, 'all' for all-time
   const firstActiveStage = S.stages.find(st => !stageEffectiveDone(st)) || S.stages[S.stages.length - 1] || null;
-  const selectedStageId = (S.lbStage && S.stages.find(s => s.id === S.lbStage))
-    ? S.lbStage
-    : (firstActiveStage ? firstActiveStage.id : 'all');
+  const selectedStageId = S.lbStage === 'all'
+    ? 'all'
+    : (S.lbStage && S.stages.find(s => s.id === S.lbStage))
+      ? S.lbStage
+      : (firstActiveStage ? firstActiveStage.id : 'all');
 
   const stats = selectedStageId === 'all' ? allStats() : stageStats(selectedStageId);
 
