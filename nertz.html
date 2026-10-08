@@ -45,14 +45,14 @@
     .mode-btn.active { background: var(--accent); color: #fff; }
 
     /* MAIN */
-    .main { flex: 1; overflow-y: auto; padding-bottom: calc(64px + var(--sb)); }
+    .main { flex: 1; overflow-y: auto; padding-bottom: calc(88px + var(--sb)); }
     .main.no-nav { padding-bottom: 0; }
 
-    /* BOTTOM NAV */
-    .bnav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: var(--surface); border-top: 1px solid var(--border); display: flex; padding-bottom: var(--sb); z-index: 100; }
-    .bnav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 0; gap: 3px; font-size: 10px; font-weight: 700; color: var(--muted); cursor: pointer; border: none; background: none; transition: color 0.15s; letter-spacing: .06em; text-transform: uppercase; position: relative; }
-    .bnav-item.active { color: var(--accent); }
-    .bnav-item.active::after { content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 24px; height: 2px; background: var(--accent); border-radius: 0 0 3px 3px; }
+    /* BOTTOM NAV — floating pill */
+    .bnav { position: fixed; bottom: calc(16px + var(--sb)); left: 50%; transform: translateX(-50%); width: auto; background: rgba(12,12,20,.78); backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6); border: 1px solid rgba(255,255,255,.08); border-radius: 100px; display: flex; padding: 5px; gap: 2px; z-index: 100; box-shadow: 0 8px 32px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.3); }
+    .bnav-item { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 9px 22px; gap: 3px; font-size: 10px; font-weight: 700; color: rgba(255,255,255,.4); cursor: pointer; border: none; background: none; transition: all .18s; letter-spacing: .06em; text-transform: uppercase; border-radius: 100px; white-space: nowrap; }
+    .bnav-item.active { color: #fff; background: rgba(255,255,255,.13); }
+    .bnav-item.active::after { display: none; }
     .bnav-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
 
     /* HOME SCREEN */
@@ -1024,7 +1024,7 @@ function buildPlayer() {
 function bnavItem(screen, icon, label) {
   const active = S.screen === screen;
   return `<button class="bnav-item ${active?'active':''}" data-a="setScreen" data-v="${screen}">
-    <span class="bnav-icon" style="color:${active?'var(--accent)':'var(--muted)'}">${icon}</span>${escH(label)}
+    <span class="bnav-icon">${icon}</span>${escH(label)}
   </button>`;
 }
 function navIconHome(size=24) {
