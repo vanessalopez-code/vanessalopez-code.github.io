@@ -3021,6 +3021,10 @@ function doAutoAssignFromPrev(sid) {
   const stageIdx = S.stages.findIndex(s => s.id === sid);
   if (stageIdx <= 0) { alert('No previous stage to pull advancers from.'); return; }
   const prevStageId = S.stages[stageIdx - 1].id;
+  if (!stageIsFullyDone(prevStageId)) {
+    const prevName = S.stages[stageIdx - 1].name || 'the previous stage';
+    if (!confirm(`⚠️ Not all games in ${prevName} are finished yet.\n\nAuto-assigning now will use incomplete standings and may advance the wrong players.\n\nProceed anyway?`)) return;
+  }
   const advancers = getStageAdvancers(prevStageId);
   if (advancers.length === 0) { alert('No advancers found from the previous stage.'); return; }
   const ss = getStageSettings(sid);
@@ -3052,6 +3056,10 @@ function doGenerateFinals(sid) {
   const stageIdx = S.stages.findIndex(s => s.id === sid);
   if (stageIdx <= 0) { alert('No previous stage to pull winners from.'); return; }
   const prevStageId = S.stages[stageIdx - 1].id;
+  if (!stageIsFullyDone(prevStageId)) {
+    const prevName = S.stages[stageIdx - 1].name || 'the previous stage';
+    if (!confirm(`⚠️ Not all games in ${prevName} are finished yet.\n\nGenerating finals now will use incomplete standings and may select the wrong players.\n\nProceed anyway?`)) return;
+  }
   const advancers = getStageAdvancers(prevStageId);
   if (advancers.length === 0) { alert('No advancers found from the previous stage.'); return; }
   // Use the previous stage's scoped stats and its own advancementMethod (not the global setting)
