@@ -595,6 +595,26 @@ function roundsCompletedForPlayer(stageId, pid) {
   return completed;
 }
 
+// Returns how many regular rounds a player missed before they first appeared in any group.
+// Used to detect late-joiners who need makeup games.
+function missedRoundsForPlayer(stageId, pid) {
+  const ss = getStageSettings(stageId);
+  if (!ss.shuffleAfterGame) return 0;
+  const p = getPart(pid);
+  const colKey = ss.mixCategories ? '__all__' : (p?.categoryId || '__all__');
+  const regularGroups = S.groups.filter(g =>
+    g.stageId === stageId && !g.isCatchup && !g.isMakeup &&
+    groupColKey(g, ss) === colKey
+  );
+  if (!regularGroups.length) return 0;
+  const playerGroups = regularGroups.filter(g => g.participantIds.includes(pid));
+  if (!playerGroups.length) {
+    // Not in any regular round — all completed rounds are missed
+    return roundsCompletedForPlayer(stageId, pid);
+  }
+  return Math.min(...playerGroups.map(g => g.round || 1)) - 1;
+}
+
 // Returns the count of fully-completed rounds in a stage (all groups in that round done).
 function roundsCompletedInStage(stageId) {
   const groups = S.groups.filter(g => g.stageId === stageId && !g.isCatchup && !g.isMakeup);
@@ -3527,7 +3547,37 @@ function checkAndTriggerShuffles() {
       if (S.groups.length + S.games.length > before) changed = true;
     });
   });
-  if (changed) save();
+
+  // Self-heal lateJoinQueue: detect late-joiners whose entry was lost due to race conditions
+  let lateJoinChanged = false;
+  S.stages.forEach(stage => {
+    if (stage.status === 'complete') return;
+    const ss = getStageSettings(stage.id);
+    if (!ss.shuffleAfterGame) return;
+    S.participants.forEach(p => {
+      const missed = missedRoundsForPlayer(stage.id, p.id);
+      if (missed <= 0) return;
+      if (S.lateJoinQueue?.[stage.id]?.find(e => e.pid === p.id)) return;
+      // Skip if makeup series already done
+      const makeupGroup = S.groups.find(g => g.stageId === stage.id && g.isMakeup && g.makeupPlayerId === p.id);
+      const makeupDone = makeupGroup ? S.games.filter(g => g.groupId === makeupGroup.id && g.completed).length : 0;
+      if (makeupDone >= missed) return;
+      if (!S.lateJoinQueue) S.lateJoinQueue = {};
+      if (!S.lateJoinQueue[stage.id]) S.lateJoinQueue[stage.id] = [];
+      S.lateJoinQueue[stage.id].push({ pid: p.id, makeupGamesNeeded: missed });
+      lateJoinChanged = true;
+    });
+  });
+
+  const updateData = {};
+  if (changed) { updateData.groups = S.groups; updateData.games = S.games; }
+  if (lateJoinChanged) { updateData.lateJoinQueue = S.lateJoinQueue; }
+  if (Object.keys(updateData).length && S.tournamentId) {
+    db.collection('tournaments').doc(S.tournamentId)
+      .update(updateData)
+      .catch(e => console.error('shuffle save error:', e));
+  }
+  if (changed || lateJoinChanged) render();
 }
 
 function doCompleteGame(gameid) {
