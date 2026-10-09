@@ -1306,7 +1306,7 @@ function buildTournamentSummary() {
 function buildHome() {
   const totalGames = S.games.filter(g=>g.completed).length;
   const activeGames = S.games.filter(g=>!g.completed).length;
-  const statText = `${S.stages.length} Stage${S.stages.length!==1?'s':''} · ${totalGames} Game${totalGames!==1?'s':''} Played${activeGames?' · '+activeGames+' Active':''}`;
+  const statText = `${S.stages.length} Stage${S.stages.length!==1?'s':''} • ${S.settings.gamesPerStage ?? 1} Games per Stage • ${S.settings.pointsToWin ?? 50} Pts to Win a Game`;
   const tournamentWinners = getTournamentWinners();
   const winnerNames = tournamentWinners.map(pid => getPart(pid)?.name || '?');
   return `<div class="home">
