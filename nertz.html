@@ -353,13 +353,13 @@ function refreshPlayerLibrary() {
 function saveLibrary(lib) {
   saveLibraryLS(lib);
   refreshPlayerLibrary();
-  db.category('tournaments').doc('__playerLibrary__')
+  db.collection('tournaments').doc('__playerLibrary__')
     .set({ data: lib, updatedAt: Date.now() })
     .catch(e => console.error('Library save error:', e));
 }
 function subscribeToLibrary() {
   if (unsubscribeLibrary) return;
-  unsubscribeLibrary = db.category('tournaments').doc('__playerLibrary__')
+  unsubscribeLibrary = db.collection('tournaments').doc('__playerLibrary__')
     .onSnapshot(doc => {
       if (!doc.exists || !doc.data().data) return;
       const lib = doc.data().data;
@@ -377,7 +377,7 @@ function save() {
   if (!S.tournamentId) return;
   const data = {};
   Object.keys(S).forEach(k => { if (!UI_FIELDS.has(k)) data[k] = S[k]; });
-  db.category('tournaments').doc(S.tournamentId).set(data).catch(e => console.error('Save error:', e));
+  db.collection('tournaments').doc(S.tournamentId).set(data).catch(e => console.error('Save error:', e));
   localStorage.setItem('nertz2-active', S.tournamentId);
 }
 
@@ -385,7 +385,7 @@ function subscribeToTournament(id) {
   if (unsubscribeTournament) unsubscribeTournament();
   let isFirst = true;
   localStorage.setItem('nertz2-active', id);
-  unsubscribeTournament = db.category('tournaments').doc(id).onSnapshot(doc => {
+  unsubscribeTournament = db.collection('tournaments').doc(id).onSnapshot(doc => {
     if (!doc.exists) return;
     const data = doc.data();
     // Strip UI_FIELDS from Firestore data to prevent stale saved UI state from overriding current UI
@@ -440,7 +440,7 @@ function init() {
     </div>`;
   refreshPlayerLibrary();  // instant load from local cache
   subscribeToLibrary();    // then sync from Firestore across devices
-  unsubscribeTournamentList = db.category('tournaments').orderBy('createdAt','desc')
+  unsubscribeTournamentList = db.collection('tournaments').orderBy('createdAt','desc')
     .onSnapshot(snap => {
       tournamentList = snap.docs.map(d => ({ id: d.id, ...d.data(), name: d.data().tournamentName || 'Unnamed' }));
       if (S.screen === 'picker') render();
@@ -783,7 +783,7 @@ function loadPhotos(tid) {
   if (localHit) render();
   // Then fetch from Firestore — overwrites with the definitive saved version
   const promises = S.participants.map(p =>
-    db.category('playerPhotos').doc(tid + '_' + p.id).get()
+    db.collection('playerPhotos').doc(tid + '_' + p.id).get()
   );
   Promise.all(promises).then(docs => {
     let updated = false;
@@ -800,7 +800,7 @@ function loadPhotos(tid) {
 
 function savePhotoToFirestore(pid, dataUrl) {
   if (!S.tournamentId) return;
-  db.category('playerPhotos').doc(S.tournamentId + '_' + pid)
+  db.collection('playerPhotos').doc(S.tournamentId + '_' + pid)
     .set({ photo: dataUrl, updatedAt: Date.now() })
     .catch(e => console.error('Photo save error:', e));
   const p = getPart(pid);
@@ -2763,7 +2763,7 @@ function onClick(e) {
       localStorage.removeItem('nertz2-active');
       S = { ...DEF, settings:{...DEF.settings} };
       render();
-      db.category('tournaments').doc(tid).delete().catch(e => console.error('Delete error:', e));
+      db.collection('tournaments').doc(tid).delete().catch(e => console.error('Delete error:', e));
     }
   }
   else if (a==='openPhotoCrop') openFilePicker(pid);
@@ -3247,7 +3247,7 @@ function doSaveScore(pid) {
 // Prevents lost updates when multiple devices save concurrently.
 async function mutateGameTx(gameId, fn) {
   if (!S.tournamentId) return;
-  const ref = db.category('tournaments').doc(S.tournamentId);
+  const ref = db.collection('tournaments').doc(S.tournamentId);
   await db.runTransaction(async tx => {
     const doc = await tx.get(ref);
     if (!doc.exists) return;
@@ -3395,7 +3395,7 @@ async function doCreateTournament() {
   const inp = document.getElementById('new-tourney-name');
   const name = inp?.value.trim();
   if (!name) { if(inp){inp.focus();inp.style.borderColor='var(--red)';} return; }
-  const docRef = db.category('tournaments').doc();
+  const docRef = db.collection('tournaments').doc();
   const id = docRef.id;
   const now = Date.now();
   const newData = {
