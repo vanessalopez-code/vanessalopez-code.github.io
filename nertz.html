@@ -317,11 +317,11 @@ const DEF = {
     advancementMethod: 'wins',
     shuffleAfterGame: false,
     firstStageAssignment: 'manual',
-    laterStageAssignment: 'collection',
+    laterStageAssignment: 'category',
     finalsAssignment: 'auto',
-    advancersPerCollection: 1,
+    advancersPerCategory: 1,
   },
-  collections: [],
+  categories: [],
   participants: [],
   stages: [],
   groups: [],
@@ -352,13 +352,13 @@ function refreshPlayerLibrary() {
 function saveLibrary(lib) {
   saveLibraryLS(lib);
   refreshPlayerLibrary();
-  db.collection('tournaments').doc('__playerLibrary__')
+  db.category('tournaments').doc('__playerLibrary__')
     .set({ data: lib, updatedAt: Date.now() })
     .catch(e => console.error('Library save error:', e));
 }
 function subscribeToLibrary() {
   if (unsubscribeLibrary) return;
-  unsubscribeLibrary = db.collection('tournaments').doc('__playerLibrary__')
+  unsubscribeLibrary = db.category('tournaments').doc('__playerLibrary__')
     .onSnapshot(doc => {
       if (!doc.exists || !doc.data().data) return;
       const lib = doc.data().data;
@@ -376,7 +376,7 @@ function save() {
   if (!S.tournamentId) return;
   const data = {};
   Object.keys(S).forEach(k => { if (!UI_FIELDS.has(k)) data[k] = S[k]; });
-  db.collection('tournaments').doc(S.tournamentId).set(data).catch(e => console.error('Save error:', e));
+  db.category('tournaments').doc(S.tournamentId).set(data).catch(e => console.error('Save error:', e));
   localStorage.setItem('nertz2-active', S.tournamentId);
 }
 
@@ -384,7 +384,7 @@ function subscribeToTournament(id) {
   if (unsubscribeTournament) unsubscribeTournament();
   let isFirst = true;
   localStorage.setItem('nertz2-active', id);
-  unsubscribeTournament = db.collection('tournaments').doc(id).onSnapshot(doc => {
+  unsubscribeTournament = db.category('tournaments').doc(id).onSnapshot(doc => {
     if (!doc.exists) return;
     const data = doc.data();
     // Strip UI_FIELDS from Firestore data to prevent stale saved UI state from overriding current UI
@@ -439,7 +439,7 @@ function init() {
     </div>`;
   refreshPlayerLibrary();  // instant load from local cache
   subscribeToLibrary();    // then sync from Firestore across devices
-  unsubscribeTournamentList = db.collection('tournaments').orderBy('createdAt','desc')
+  unsubscribeTournamentList = db.category('tournaments').orderBy('createdAt','desc')
     .onSnapshot(snap => {
       tournamentList = snap.docs.map(d => ({ id: d.id, ...d.data(), name: d.data().tournamentName || 'Unnamed' }));
       if (S.screen === 'picker') render();
@@ -473,7 +473,7 @@ function escH(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function getPart(id) { return S.participants.find(p=>p.id===id); }
-function getCol(id) { return S.collections.find(c=>c.id===id); }
+function getCol(id) { return S.categories.find(c=>c.id===id); }
 function getGroup(id) { return S.groups.find(g=>g.id===id); }
 function getGame(id) { return S.games.find(g=>g.id===id); }
 function getStage(id) { return S.stages.find(s=>s.id===id); }
@@ -594,8 +594,8 @@ function unassigned(stageId) {
 
 function colorsForParticipant(pid) {
   const p = getPart(pid);
-  if (!p || !p.collectionId) return null;
-  return getCol(p.collectionId);
+  if (!p || !p.categoryId) return null;
+  return getCol(p.categoryId);
 }
 
 // Distribute `total` players into groups of at most `maxSize`, never smaller than `minSize`.
@@ -634,23 +634,23 @@ function getStageSettings(stageId) {
     pointsToWin:           ss.pointsToWin           ?? gs.pointsToWin,
     shuffleAfterGame:      ss.shuffleAfterGame      ?? gs.shuffleAfterGame,
     advancementMethod:     ss.advancementMethod     ?? gs.advancementMethod,
-    advancersPerCollection: ss.advancersPerCollection ?? gs.advancersPerCollection ?? gs.advancersPerGroup ?? 1,
-    mixCollections:        ss.mixCollections        ?? false,
+    advancersPerCategory: ss.advancersPerCategory ?? gs.advancersPerCategory ?? gs.advancersPerGroup ?? 1,
+    mixCategories:        ss.mixCategories        ?? false,
     groupAssignment:       ss.groupAssignment       ?? 'manual',
     isFinal:               ss.isFinal              ?? false,
   };
 }
 
 // Returns groups in a stage that belong to the current (highest) round.
-// Returns the collection key for a group based on its first player's collectionId.
+// Returns the category key for a group based on its first player's categoryId.
 function groupColKey(group, ss) {
-  if (ss && ss.mixCollections) return '__all__';
+  if (ss && ss.mixCategories) return '__all__';
   const pid = group.participantIds && group.participantIds[0];
-  return pid ? (getPart(pid)?.collectionId || '__all__') : '__all__';
+  return pid ? (getPart(pid)?.categoryId || '__all__') : '__all__';
 }
 
 // Excludes catch-up groups. In shuffle mode returns the highest-round groups
-// per collection independently (so different collections can be on different rounds).
+// per category independently (so different categories can be on different rounds).
 function activeGroupsForStage(stageId) {
   const groups = S.groups.filter(g => g.stageId === stageId && !g.isCatchup);
   if (!groups.length) return [];
@@ -659,7 +659,7 @@ function activeGroupsForStage(stageId) {
     const maxRound = Math.max(...groups.map(g => g.round || 1));
     return groups.filter(g => (g.round || 1) === maxRound);
   }
-  // Shuffle mode: per-collection max-round groups
+  // Shuffle mode: per-category max-round groups
   const byCol = {};
   groups.forEach(g => {
     const k = groupColKey(g, ss);
@@ -782,7 +782,7 @@ function loadPhotos(tid) {
   if (localHit) render();
   // Then fetch from Firestore — overwrites with the definitive saved version
   const promises = S.participants.map(p =>
-    db.collection('playerPhotos').doc(tid + '_' + p.id).get()
+    db.category('playerPhotos').doc(tid + '_' + p.id).get()
   );
   Promise.all(promises).then(docs => {
     let updated = false;
@@ -799,7 +799,7 @@ function loadPhotos(tid) {
 
 function savePhotoToFirestore(pid, dataUrl) {
   if (!S.tournamentId) return;
-  db.collection('playerPhotos').doc(S.tournamentId + '_' + pid)
+  db.category('playerPhotos').doc(S.tournamentId + '_' + pid)
     .set({ photo: dataUrl, updatedAt: Date.now() })
     .catch(e => console.error('Photo save error:', e));
   const p = getPart(pid);
@@ -1292,8 +1292,8 @@ function buildTournamentSummary() {
       const gps = ss.gamesPerStage || 1;
       bullets.push(`The top players will play <strong>${gps} game${gps !== 1 ? 's' : ''}</strong> for the championship win.`);
     } else if (nextStage) {
-      const n = ss.advancersPerCollection || 1;
-      const perWhat = ss.mixCollections ? 'overall' : (n === 1 ? 'from each group' : 'from each collection');
+      const n = ss.advancersPerCategory || 1;
+      const perWhat = ss.mixCategories ? 'overall' : (n === 1 ? 'from each group' : 'from each category');
       const topStr = n === 1 ? 'The top player' : `The top <strong>${n} players</strong>`;
       bullets.push(`${topStr} ${perWhat} will progress to <strong>${escH(nextStage.name)}</strong>.`);
     }
@@ -1471,7 +1471,7 @@ function buildGroups() {
     }
   }
 
-  // Filter displayed groups to the selected round (in shuffle mode) or use per-collection active groups
+  // Filter displayed groups to the selected round (in shuffle mode) or use per-category active groups
   const stageGroups = ss.shuffleAfterGame && (ss.gamesPerStage || 1) > 1
     ? S.groups.filter(g => g.stageId === selectedSid && !g.isCatchup && (g.round || 1) === selectedRound)
     : activeGroupsForStage(selectedSid);
@@ -1521,7 +1521,7 @@ function buildGroups() {
 
     const groupAvatars = group.participantIds.map(pid => {
       const p = getPart(pid);
-      const col = p?.collectionId ? getCol(p.collectionId) : null;
+      const col = p?.categoryId ? getCol(p.categoryId) : null;
       const bg = avatarBg(pid);
       const avStyle = bg || (col ? `background:${col.color};color:#fff;` : '');
       return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0">
@@ -1733,7 +1733,7 @@ function buildLeaderboard() {
       ${sorted.length === 0 ? `<div class="empty"><div class="empty-icon">📊</div><p>No games played in this stage yet.</p></div>` : `<div class="card">
         ${sorted.map((p,i) => {
           const st = stats[p.id]||{totalPoints:0,gamesWon:0,gamesPlayed:0};
-          const col = p.collectionId?getCol(p.collectionId):null;
+          const col = p.categoryId?getCol(p.categoryId):null;
           const mainVal = sortKey==='wins' ? st.gamesWon : sortKey==='points' ? st.totalPoints : st.gamesPlayed;
           const mainLabel = sortKey==='wins' ? 'wins' : sortKey==='points' ? 'pts' : 'played';
           const sub = sortKey==='wins' ? `${st.gamesPlayed} played · ${st.totalPoints>=0?'+':''}${st.totalPoints} pts` :
@@ -1862,7 +1862,7 @@ function buildActiveScorecardView(game) {
     html += `<div class="sc-players">`;
     game.participantIds.forEach(pid => {
       const p = getPart(pid);
-      const col = p?.collectionId ? getCol(p.collectionId) : null;
+      const col = p?.categoryId ? getCol(p.categoryId) : null;
       const inp = round[pid];
       const hasScore = inp !== undefined && inp !== '';
       const isNA = inp === 'NA';
@@ -2022,7 +2022,7 @@ function buildScoreModal() {
   const pid = S.scoringModal.pid;
   const editRound = S.scoringModal.editRound; // undefined = current round, number = editing past round
   const p = getPart(pid);
-  const col = p?.collectionId ? getCol(p.collectionId) : null;
+  const col = p?.categoryId ? getCol(p.categoryId) : null;
   const game = activeGameForGroup(S.activeGroupId);
   const cum = game ? cumulative(game) : {};
   const sc = cum[pid]||[];
@@ -2190,10 +2190,10 @@ function buildAdminSettings() {
 }
 
 function buildAdminPlayers() {
-  const cols = S.collections;
+  const cols = S.categories;
   const byCol = {}, none = [];
   S.participants.forEach(p => {
-    p.collectionId ? (byCol[p.collectionId]=byCol[p.collectionId]||[]).push(p) : none.push(p);
+    p.categoryId ? (byCol[p.categoryId]=byCol[p.categoryId]||[]).push(p) : none.push(p);
   });
 
   let listHtml = '';
@@ -2210,7 +2210,7 @@ function buildAdminPlayers() {
   });
   if (none.length) {
     listHtml += `<div class="card" style="margin:0">
-      ${cols.length?`<div class="card-header" style="border-bottom:1px solid var(--border)"><div class="card-title text-muted">No Collection</div></div>`:''}
+      ${cols.length?`<div class="card-header" style="border-bottom:1px solid var(--border)"><div class="card-title text-muted">No Category</div></div>`:''}
       ${none.map(p=>playerRow(p)).join('')}
     </div>`;
   }
@@ -2218,7 +2218,7 @@ function buildAdminPlayers() {
   return `<div class="section" style="gap:12px">
     <div class="card">
       <div class="card-header">
-        <div class="card-title">Collections</div>
+        <div class="card-title">Categories</div>
         <button class="btn btn-ghost btn-xs" data-a="toggleForm" data-f="col-form">+ Add</button>
       </div>
       <div id="col-form" class="hidden" style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border)">
@@ -2228,13 +2228,13 @@ function buildAdminPlayers() {
           <span class="text-muted" style="font-size:13px">Pick a color</span>
         </div>
         <div class="btn-row">
-          <button class="btn btn-primary btn-sm" data-a="addCollection">Add Collection</button>
+          <button class="btn btn-primary btn-sm" data-a="addCategory">Add Category</button>
           <button class="btn btn-ghost btn-sm" data-a="toggleForm" data-f="col-form">Cancel</button>
         </div>
       </div>
       ${cols.length===0?`<div style="padding:12px 16px;font-size:13px;color:var(--muted)">Optional: group players by skill level or age.</div>`:''}
       ${cols.length?`<div style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid var(--border)">
-        ${cols.map(c=>`<div class="chip"><span class="chip-dot" style="background:${c.color}"></span>${escH(c.name)}<button class="btn-icon red" data-a="deleteCollection" data-id="${c.id}" style="font-size:14px;padding:0 2px">×</button></div>`).join('')}
+        ${cols.map(c=>`<div class="chip"><span class="chip-dot" style="background:${c.color}"></span>${escH(c.name)}<button class="btn-icon red" data-a="deleteCategory" data-id="${c.id}" style="font-size:14px;padding:0 2px">×</button></div>`).join('')}
       </div>`:''}
     </div>
 
@@ -2265,7 +2265,7 @@ function buildAdminPlayers() {
       <div id="part-form" class="hidden" style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border)">
         <input type="text" class="input input-sm" id="part-name" placeholder="Player name">
         ${cols.length?`<select class="input input-sm" id="part-col">
-          <option value="">No collection</option>
+          <option value="">No category</option>
           ${cols.map(c=>`<option value="${c.id}">${escH(c.name)}</option>`).join('')}
         </select>`:''}
         <div class="btn-row">
@@ -2281,7 +2281,7 @@ function buildAdminPlayers() {
 }
 
 function playerRow(p) {
-  const c = p.collectionId ? getCol(p.collectionId) : null;
+  const c = p.categoryId ? getCol(p.categoryId) : null;
   const bg = avatarBg(p.id);
   const avStyle = bg ? bg : (c ? `border-color:${c.color};color:${c.color}` : '');
   return `<div class="list-row">
@@ -2292,9 +2292,9 @@ function playerRow(p) {
       <div style="font-size:15px;font-weight:600">${escH(p.name)}</div>
       ${c?`<div style="font-size:12px;color:var(--muted)">${escH(c.name)}</div>`:''}
     </div>
-    ${S.collections.length?`<select class="input input-sm" data-a="setPlayerCol" data-id="${p.id}" style="width:auto;min-width:100px">
+    ${S.categories.length?`<select class="input input-sm" data-a="setPlayerCol" data-id="${p.id}" style="width:auto;min-width:100px">
       <option value="">None</option>
-      ${S.collections.map(c2=>`<option value="${c2.id}" ${p.collectionId===c2.id?'selected':''}>${escH(c2.name)}</option>`).join('')}
+      ${S.categories.map(c2=>`<option value="${c2.id}" ${p.categoryId===c2.id?'selected':''}>${escH(c2.name)}</option>`).join('')}
     </select>`:''}
     <button class="btn-icon" data-a="openPhotoCrop" data-pid="${p.id}" title="Add/change photo" style="font-size:16px">📷</button>
     <button class="btn-icon red" data-a="deletePlayer" data-id="${p.id}">×</button>
@@ -2311,7 +2311,7 @@ function stageAssignmentMode(stageId) {
     return 'manual';
   }
   if (idx === lastIdx) return S.settings.finalsAssignment || 'auto';
-  return 'collection';
+  return 'category';
 }
 
 function groupStatusBadge(status) {
@@ -2355,10 +2355,10 @@ function buildStageSettingsPanel(stage) {
       </div>
     </div>
     <div class="field">
-      <div class="label" style="font-size:11px">Collections</div>
+      <div class="label" style="font-size:11px">Categories</div>
       <div class="seg">
-        <button class="seg-btn ${!ss.mixCollections?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="mixCollections" data-v="false">Stay Separated</button>
-        <button class="seg-btn ${ss.mixCollections?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="mixCollections" data-v="true">Mix Together</button>
+        <button class="seg-btn ${!ss.mixCategories?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="mixCategories" data-v="false">Stay Separated</button>
+        <button class="seg-btn ${ss.mixCategories?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="mixCategories" data-v="true">Mix Together</button>
       </div>
     </div>
     ${!ss.isFinal ? `
@@ -2370,8 +2370,8 @@ function buildStageSettingsPanel(stage) {
       </div>
     </div>
     <div class="field">
-      <div class="label" style="font-size:11px">Players Advancing/Collection</div>
-      <div class="seg">${[1,2,3,4,5].map(n=>`<button class="seg-btn ${ss.advancersPerCollection===n?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="advancersPerCollection" data-v="${n}">${n}</button>`).join('')}</div>
+      <div class="label" style="font-size:11px">Players Advancing/Category</div>
+      <div class="seg">${[1,2,3,4,5].map(n=>`<button class="seg-btn ${ss.advancersPerCategory===n?'active':''}" data-a="setStageSetting" data-sid="${sid}" data-k="advancersPerCategory" data-v="${n}">${n}</button>`).join('')}</div>
     </div>` : ''}
     <div class="field">
       <div class="label" style="font-size:11px">Stage Type</div>
@@ -2427,7 +2427,7 @@ function buildAdminStages() {
           : stageGroups.length > 0
             ? `<button class="btn btn-ghost btn-xs" data-a="randomizeStage" data-sid="${stage.id}">🔀 Re-shuffle</button>`
             : `<button class="btn btn-primary btn-sm" data-a="randomizeStage" data-sid="${stage.id}">🔀 Randomize Groups</button>`) :
-        isLaterStage && mode === 'collection' ? `<button class="btn btn-ghost btn-xs" data-a="autoAssignFromPrev" data-sid="${stage.id}">↑ Auto-assign</button>` :
+        isLaterStage && mode === 'category' ? `<button class="btn btn-ghost btn-xs" data-a="autoAssignFromPrev" data-sid="${stage.id}">↑ Auto-assign</button>` :
         isFinals && mode === 'auto' ? `<button class="btn btn-ghost btn-xs" data-a="generateFinals" data-sid="${stage.id}">🏆 Generate Finals</button>` : ''
       ) : '';
 
@@ -2460,7 +2460,7 @@ function buildAdminStages() {
             ${group.participantIds.length ? `<div class="chips">
               ${group.participantIds.map(pid => {
                 const p = getPart(pid);
-                const col = p?.collectionId ? getCol(p.collectionId) : null;
+                const col = p?.categoryId ? getCol(p.categoryId) : null;
                 return `<div class="chip">${col?`<span class="chip-dot" style="background:${col.color}"></span>`:''}${escH(p?.name||'?')}${isManual&&gStatus==='pending'?`<button class="btn-icon" data-a="removeFromGroup" data-gid="${group.id}" data-pid="${pid}" style="font-size:12px;padding:0 2px">×</button>`:''}</div>`;
               }).join('')}
             </div>` : ''}
@@ -2575,7 +2575,7 @@ function buildAdminStandings() {
   return `<div class="section"><div class="card">
     ${sorted.map((p,i)=>{
       const st=stats[p.id]||{totalPoints:0,gamesWon:0,gamesPlayed:0};
-      const col=p.collectionId?getCol(p.collectionId):null;
+      const col=p.categoryId?getCol(p.categoryId):null;
       const medals=['🥇','🥈','🥉'];
       const stBg = avatarBg(p.id);
       return `<div class="list-row">
@@ -2648,8 +2648,8 @@ function onClick(e) {
     const f=document.getElementById(el.dataset.f);
     if(f) f.classList.toggle('hidden');
   }
-  else if (a==='addCollection') doAddCollection();
-  else if (a==='deleteCollection') doDeleteCollection(id);
+  else if (a==='addCategory') doAddCategory();
+  else if (a==='deleteCategory') doDeleteCategory(id);
   else if (a==='addPlayer') doAddPlayer();
   else if (a==='deletePlayer') doDeletePlayer(id);
   else if (a==='addFromLibrary') {
@@ -2658,7 +2658,7 @@ function onClick(e) {
     if (!lp) return;
     const col = null;
     const newId = uid();
-    S.participants.push({ id: newId, name: lp.name, collectionId: col });
+    S.participants.push({ id: newId, name: lp.name, categoryId: col });
     if (lp.photo) {
       photoCache[newId] = lp.photo;
       savePhotoToFirestore(newId, lp.photo);
@@ -2762,7 +2762,7 @@ function onClick(e) {
       localStorage.removeItem('nertz2-active');
       S = { ...DEF, settings:{...DEF.settings} };
       render();
-      db.collection('tournaments').doc(tid).delete().catch(e => console.error('Delete error:', e));
+      db.category('tournaments').doc(tid).delete().catch(e => console.error('Delete error:', e));
     }
   }
   else if (a==='openPhotoCrop') openFilePicker(pid);
@@ -2793,13 +2793,13 @@ function onChange(e) {
   }
   if (a==='setPlayerCol') {
     const p=S.participants.find(p=>p.id===el.dataset.id);
-    if(p){p.collectionId=el.value||null;save();render();}
+    if(p){p.categoryId=el.value||null;save();render();}
   }
 }
 
 function onKey(e) {
   if (e.key==='Enter') {
-    if (e.target.id==='col-name') { e.preventDefault(); doAddCollection(); }
+    if (e.target.id==='col-name') { e.preventDefault(); doAddCategory(); }
     if (e.target.id==='part-name') { e.preventDefault(); doAddPlayer(); }
     if (e.target.id==='score-inp') { e.preventDefault(); doSaveScore(S.scoringModal?.pid); }
     if (e.target.id==='admin-pw-inp') { e.preventDefault(); doSubmitAdminAuth(); }
@@ -2810,16 +2810,16 @@ function onKey(e) {
 // =========================================================
 // ACTIONS
 // =========================================================
-function doAddCollection() {
+function doAddCategory() {
   const name=document.getElementById('col-name')?.value.trim();
   const color=document.getElementById('col-color')?.value||'#4f8ef7';
   if(!name) return;
-  S.collections.push({id:uid(),name,color});
+  S.categories.push({id:uid(),name,color});
   save(); render();
 }
-function doDeleteCollection(id) {
-  S.collections=S.collections.filter(c=>c.id!==id);
-  S.participants.forEach(p=>{if(p.collectionId===id)p.collectionId=null;});
+function doDeleteCategory(id) {
+  S.categories=S.categories.filter(c=>c.id!==id);
+  S.participants.forEach(p=>{if(p.categoryId===id)p.categoryId=null;});
   save(); render();
 }
 function doAddPlayer() {
@@ -2827,7 +2827,7 @@ function doAddPlayer() {
   if(!name) return;
   const col=document.getElementById('part-col')?.value||null;
   const pid=uid();
-  S.participants.push({id:pid,name,collectionId:col});
+  S.participants.push({id:pid,name,categoryId:col});
   const key = playerLibraryKey(name);
   const lib = loadLibraryLS();
   lib[key] = { ...lib[key], name, updatedAt: Date.now() };
@@ -2862,11 +2862,11 @@ function doStartCatchupGame(stageId, pid) {
   if (!player) return;
   // Guard: don't create a second catch-up group if one already exists
   if (S.groups.some(g => g.stageId === stageId && g.isCatchup && g.catchupPlayerId === pid)) return;
-  // Find collection members (include eliminated) as opponents
-  const collectionId = player.collectionId;
-  let opponents = S.participants.filter(p => p.id !== pid && p.collectionId === collectionId);
+  // Find category members (include eliminated) as opponents
+  const categoryId = player.categoryId;
+  let opponents = S.participants.filter(p => p.id !== pid && p.categoryId === categoryId);
   if (!opponents.length) {
-    // Fall back to any other participant if no collection mates
+    // Fall back to any other participant if no category mates
     opponents = S.participants.filter(p => p.id !== pid);
   }
   const ss = getStageSettings(stageId);
@@ -2989,14 +2989,14 @@ function getStageAdvancers(stageId) {
   const allPids = [...new Set(stageGroups.flatMap(g => g.participantIds))];
   const ss = getStageSettings(stageId);
   const method = ss.advancementMethod;
-  const n = ss.advancersPerCollection;
+  const n = ss.advancersPerCategory;
   // Use stage-scoped stats so earlier stages don't inflate rankings
   const stats = stageStats(stageId);
 
   const byCol = {};
   allPids.forEach(pid => {
     const p = getPart(pid);
-    const k = ss.mixCollections ? '__all__' : (p?.collectionId || '__all__');
+    const k = ss.mixCategories ? '__all__' : (p?.categoryId || '__all__');
     (byCol[k] = byCol[k]||[]).push(pid);
   });
   const advancers = [];
@@ -3026,18 +3026,18 @@ function getStageAdvancers(stageId) {
   return advancers;
 }
 
-// Returns true if any collection has a tie at the advancement cutoff (for admin warning display).
+// Returns true if any category has a tie at the advancement cutoff (for admin warning display).
 function hasAdvancerTie(stageId) {
   const stageGroups = activeGroupsForStage(stageId);
   const allPids = [...new Set(stageGroups.flatMap(g => g.participantIds))];
   const ss = getStageSettings(stageId);
   const method = ss.advancementMethod;
-  const n = ss.advancersPerCollection;
+  const n = ss.advancersPerCategory;
   const stats = stageStats(stageId);
   const byCol = {};
   allPids.forEach(pid => {
     const p = getPart(pid);
-    const k = ss.mixCollections ? '__all__' : (p?.collectionId || '__all__');
+    const k = ss.mixCategories ? '__all__' : (p?.categoryId || '__all__');
     (byCol[k] = byCol[k]||[]).push(pid);
   });
   return Object.values(byCol).some(pids => {
@@ -3066,14 +3066,14 @@ function doRandomizeStage(sid) {
   const minSize = ss.minGroupSize || 1;
   const byCol = {};
   S.participants.forEach(p => {
-    const k = ss.mixCollections ? '__all__' : (p.collectionId || '__all__');
+    const k = ss.mixCategories ? '__all__' : (p.categoryId || '__all__');
     (byCol[k] = byCol[k]||[]).push(p.id);
   });
   const newGroups = [];
   let gNum = 1;
   Object.entries(byCol).forEach(([cid, pids]) => {
     const shuffled = [...pids].sort(() => Math.random() - 0.5);
-    const col = (!ss.mixCollections && cid !== '__all__') ? getCol(cid) : null;
+    const col = (!ss.mixCategories && cid !== '__all__') ? getCol(cid) : null;
     const sizes = distributeGroups(shuffled.length, size, minSize);
     let pos = 0;
     sizes.forEach(sz => {
@@ -3101,14 +3101,14 @@ function doAutoAssignFromPrev(sid) {
   const byCol = {};
   advancers.forEach(pid => {
     const p = getPart(pid);
-    const k = ss.mixCollections ? '__all__' : (p?.collectionId || '__all__');
+    const k = ss.mixCategories ? '__all__' : (p?.categoryId || '__all__');
     (byCol[k] = byCol[k]||[]).push(pid);
   });
   const newGroups = [];
   let gNum = 1;
   Object.entries(byCol).forEach(([cid, pids]) => {
     const shuffled = [...pids].sort(() => Math.random() - 0.5);
-    const col = (!ss.mixCollections && cid !== '__all__') ? getCol(cid) : null;
+    const col = (!ss.mixCategories && cid !== '__all__') ? getCol(cid) : null;
     const sizes = distributeGroups(shuffled.length, size, minSize);
     let pos = 0;
     sizes.forEach(sz => {
@@ -3134,11 +3134,11 @@ function doGenerateFinals(sid) {
   const stats = stageStats(prevStageId);
   const prevSS = getStageSettings(prevStageId);
   const method = prevSS.advancementMethod;
-  // Take top 1 per collection among the advancers
+  // Take top 1 per category among the advancers
   const byCol = {};
   advancers.forEach(pid => {
     const p = getPart(pid);
-    const k = p?.collectionId || '__all__';
+    const k = p?.categoryId || '__all__';
     (byCol[k] = byCol[k]||[]).push(pid);
   });
   const finalists = [];
@@ -3246,7 +3246,7 @@ function doSaveScore(pid) {
 // Prevents lost updates when multiple devices save concurrently.
 async function mutateGameTx(gameId, fn) {
   if (!S.tournamentId) return;
-  const ref = db.collection('tournaments').doc(S.tournamentId);
+  const ref = db.category('tournaments').doc(S.tournamentId);
   await db.runTransaction(async tx => {
     const doc = await tx.get(ref);
     if (!doc.exists) return;
@@ -3276,11 +3276,11 @@ function doSubmitRound(gameid) {
   // Transactional Firestore write — reads latest, pushes round, writes back (no lost updates)
   mutateGameTx(gameid, g => { g.rounds.push(round); });
 }
-// Create next-round groups + auto-started games for one collection's worth of sourceGroups.
+// Create next-round groups + auto-started games for one category's worth of sourceGroups.
 // colKey is used for the deduplication guard and group naming.
-function addNextRoundGroupsForCollection(stageId, nextRound, colKey, sourceGroups) {
+function addNextRoundGroupsForCategory(stageId, nextRound, colKey, sourceGroups) {
   const ss = getStageSettings(stageId);
-  // Guard: don't create duplicate rounds for this collection
+  // Guard: don't create duplicate rounds for this category
   const alreadyExists = S.groups.some(g =>
     g.stageId === stageId && (g.round || 1) === nextRound && !g.isCatchup &&
     groupColKey(g, ss) === colKey
@@ -3307,8 +3307,8 @@ function addNextRoundGroupsForCollection(stageId, nextRound, colKey, sourceGroup
   });
 }
 
-// Check all active stages and, per collection, create the next shuffle-round groups+games
-// whenever all current-round groups for that collection are done. Safe to call repeatedly.
+// Check all active stages and, per category, create the next shuffle-round groups+games
+// whenever all current-round groups for that category are done. Safe to call repeatedly.
 function checkAndTriggerShuffles() {
   let changed = false;
   S.stages.forEach(stage => {
@@ -3319,7 +3319,7 @@ function checkAndTriggerShuffles() {
     if (gamesPerStage <= 1) return;
     const stageGroups = S.groups.filter(g => g.stageId === stage.id && !g.isCatchup);
     if (!stageGroups.length) return;
-    // Group by collection — each collection shuffles independently
+    // Group by category — each category shuffles independently
     const byCol = {};
     stageGroups.forEach(g => {
       const k = groupColKey(g, ss);
@@ -3328,12 +3328,12 @@ function checkAndTriggerShuffles() {
     });
     Object.entries(byCol).forEach(([colKey, colGroups]) => {
       const maxRound = Math.max(...colGroups.map(g => g.round || 1));
-      if (maxRound >= gamesPerStage) return; // Collection finished all rounds
+      if (maxRound >= gamesPerStage) return; // Category finished all rounds
       const currentRoundGroups = colGroups.filter(g => (g.round || 1) === maxRound);
       const allDone = currentRoundGroups.every(g => completedGamesForGroup(g.id).length > 0);
       if (!allDone) return;
       const before = S.groups.length + S.games.length;
-      addNextRoundGroupsForCollection(stage.id, maxRound + 1, colKey, currentRoundGroups);
+      addNextRoundGroupsForCategory(stage.id, maxRound + 1, colKey, currentRoundGroups);
       if (S.groups.length + S.games.length > before) changed = true;
     });
   });
@@ -3394,12 +3394,12 @@ async function doCreateTournament() {
   const inp = document.getElementById('new-tourney-name');
   const name = inp?.value.trim();
   if (!name) { if(inp){inp.focus();inp.style.borderColor='var(--red)';} return; }
-  const docRef = db.collection('tournaments').doc();
+  const docRef = db.category('tournaments').doc();
   const id = docRef.id;
   const now = Date.now();
   const newData = {
     tournamentId: id, tournamentName: name, createdAt: now,
-    settings: { ...DEF.settings }, collections: [], participants: [], stages: [], groups: [], games: [],
+    settings: { ...DEF.settings }, categories: [], participants: [], stages: [], groups: [], games: [],
   };
   S = { ...DEF, ...newData, screen: 'home', mode: 'admin', pickerCreating: false };
   render();
