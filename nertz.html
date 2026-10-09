@@ -330,6 +330,7 @@ const DEF = {
   games: [],
   rules: {},
   catchupQueue: {},
+  lateJoinQueue: {},
 };
 
 let S = { ...DEF, settings: { ...DEF.settings } };
@@ -573,12 +574,31 @@ function allStats() {
   return stats;
 }
 
+// Returns the count of fully-completed rounds in a stage (all groups in that round done).
+function roundsCompletedInStage(stageId) {
+  const groups = S.groups.filter(g => g.stageId === stageId && !g.isCatchup && !g.isMakeup);
+  if (!groups.length) return 0;
+  const roundNums = [...new Set(groups.map(g => g.round || 1))].sort((a, b) => a - b);
+  let completed = 0;
+  for (const r of roundNums) {
+    const rGroups = groups.filter(g => (g.round || 1) === r);
+    if (rGroups.every(g => completedGamesForGroup(g.id).length > 0)) completed = r;
+    else break;
+  }
+  return completed;
+}
+
 // Stats scoped to games played within a specific stage (for fair advancement ranking).
+// For makeup games, only the makeupPlayerId's stats count; opponents' stats are excluded.
 function stageStats(stageId) {
-  const stageGroupIds = new Set(S.groups.filter(g => g.stageId === stageId && !g.isCatchup).map(g => g.id));
+  const regularGroupIds = new Set(S.groups.filter(g => g.stageId === stageId && !g.isCatchup && !g.isMakeup).map(g => g.id));
+  const makeupGroups = S.groups.filter(g => g.stageId === stageId && g.isMakeup);
+  const makeupGroupById = {};
+  makeupGroups.forEach(g => { makeupGroupById[g.id] = g; });
+
   const stats = {};
   S.participants.forEach(p => { stats[p.id] = {totalPoints:0, gamesWon:0, gamesPlayed:0}; });
-  S.games.filter(g => g.completed && stageGroupIds.has(g.groupId)).forEach(game => {
+  S.games.filter(g => g.completed && regularGroupIds.has(g.groupId)).forEach(game => {
     game.participantIds.forEach(pid => {
       if (!stats[pid]) stats[pid] = {totalPoints:0, gamesWon:0, gamesPlayed:0};
       stats[pid].gamesPlayed++;
@@ -586,11 +606,24 @@ function stageStats(stageId) {
     });
     creditWins(stats, game);
   });
+  // Makeup games: only count the late-joining player's stats
+  S.games.filter(g => g.completed && makeupGroupById[g.groupId]).forEach(game => {
+    const mpid = makeupGroupById[game.groupId].makeupPlayerId;
+    if (!mpid) return;
+    if (!stats[mpid]) stats[mpid] = {totalPoints:0, gamesWon:0, gamesPlayed:0};
+    stats[mpid].gamesPlayed++;
+    stats[mpid].totalPoints += playerRoundTotal(game, mpid);
+    if (game.winnerId === mpid) {
+      stats[mpid].gamesWon++;
+    } else if (!game.winnerId) {
+      if (gameTiedWinnerIds(game).includes(mpid)) stats[mpid].gamesWon++;
+    }
+  });
   return stats;
 }
 
 function unassigned(stageId) {
-  const assigned = new Set(S.groups.filter(g=>g.stageId===stageId).flatMap(g=>g.participantIds));
+  const assigned = new Set(S.groups.filter(g=>g.stageId===stageId && !g.isCatchup && !g.isMakeup).flatMap(g=>g.participantIds));
   return S.participants.filter(p=>!assigned.has(p.id));
 }
 
@@ -654,7 +687,7 @@ function groupColKey(group, ss) {
 // Excludes catch-up groups. In shuffle mode returns the highest-round groups
 // per category independently (so different categories can be on different rounds).
 function activeGroupsForStage(stageId) {
-  const groups = S.groups.filter(g => g.stageId === stageId && !g.isCatchup);
+  const groups = S.groups.filter(g => g.stageId === stageId && !g.isCatchup && !g.isMakeup);
   if (!groups.length) return [];
   const ss = getStageSettings(stageId);
   if (!ss.shuffleAfterGame) {
@@ -677,7 +710,7 @@ function activeGroupsForStage(stageId) {
 }
 
 function stageCurrentRound(stageId) {
-  const groups = S.groups.filter(g => g.stageId === stageId && !g.isCatchup);
+  const groups = S.groups.filter(g => g.stageId === stageId && !g.isCatchup && !g.isMakeup);
   if (!groups.length) return 1;
   return Math.max(...groups.map(g => g.round || 1));
 }
@@ -699,7 +732,7 @@ function prevStageCompleteForGroup(group, stageIdx) {
   const prevStage = S.stages[stageIdx - 1];
   const prevGroupIds = new Set();
   group.participantIds.forEach(pid => {
-    S.groups.filter(g => g.stageId === prevStage.id && !g.isCatchup && g.participantIds.includes(pid))
+    S.groups.filter(g => g.stageId === prevStage.id && !g.isCatchup && !g.isMakeup && g.participantIds.includes(pid))
       .forEach(pg => prevGroupIds.add(pg.id));
   });
   if (!prevGroupIds.size) return true;
@@ -726,7 +759,7 @@ function getTournamentWinners() {
   const ss = getStageSettings(finalStage.id);
   const method = ss.advancementMethod || 'wins';
   const stats = stageStats(finalStage.id);
-  const finalGroupIds = new Set(S.groups.filter(g => g.stageId === finalStage.id && !g.isCatchup).map(g => g.id));
+  const finalGroupIds = new Set(S.groups.filter(g => g.stageId === finalStage.id && !g.isCatchup && !g.isMakeup).map(g => g.id));
   const finalPids = [...new Set(S.games.filter(g => finalGroupIds.has(g.groupId)).flatMap(g => g.participantIds))];
   if (!finalPids.length) return [];
   const ranked = [...finalPids].sort((a, b) => {
@@ -1448,7 +1481,7 @@ function buildGroups() {
   let selectedRound = 1;
   if (ss.shuffleAfterGame && (ss.gamesPerStage || 1) > 1) {
     const gamesPerStage = ss.gamesPerStage || 1;
-    const allStageGroups = S.groups.filter(g => g.stageId === selectedSid && !g.isCatchup);
+    const allStageGroups = S.groups.filter(g => g.stageId === selectedSid && !g.isCatchup && !g.isMakeup);
     const allRounds = [...new Set(allStageGroups.map(g => g.round || 1))].sort((a, b) => a - b);
     // Default: lowest round that has any active or pending group
     const firstOpenRound = allRounds.find(r => {
@@ -1475,7 +1508,7 @@ function buildGroups() {
 
   // Filter displayed groups to the selected round (in shuffle mode) or use per-category active groups
   const stageGroups = ss.shuffleAfterGame && (ss.gamesPerStage || 1) > 1
-    ? S.groups.filter(g => g.stageId === selectedSid && !g.isCatchup && (g.round || 1) === selectedRound)
+    ? S.groups.filter(g => g.stageId === selectedSid && !g.isCatchup && !g.isMakeup && (g.round || 1) === selectedRound)
     : activeGroupsForStage(selectedSid);
 
   if (!stageGroups.length) {
@@ -1698,10 +1731,10 @@ function buildLeaderboard() {
   // For a stage view, only show players who participated in that stage
   let displayPlayers = [...S.participants];
   if (selectedStageId !== 'all') {
-    const stageGroupIds = new Set(S.groups.filter(g => g.stageId === selectedStageId && !g.isCatchup).map(g => g.id));
+    const stageGroupIds = new Set(S.groups.filter(g => g.stageId === selectedStageId && !g.isCatchup && !g.isMakeup).map(g => g.id));
     const stagePids = new Set(S.games.filter(g => stageGroupIds.has(g.groupId)).flatMap(g => g.participantIds));
     // Also include players assigned to groups even if no game started yet
-    S.groups.filter(g => g.stageId === selectedStageId && !g.isCatchup).forEach(g => g.participantIds.forEach(pid => stagePids.add(pid)));
+    S.groups.filter(g => g.stageId === selectedStageId && !g.isCatchup && !g.isMakeup).forEach(g => g.participantIds.forEach(pid => stagePids.add(pid)));
     displayPlayers = displayPlayers.filter(p => stagePids.has(p.id));
   }
 
@@ -2526,6 +2559,61 @@ function buildAdminStages() {
           </div>`;
         })()}
 
+        ${(() => {
+          const lateEntries = (S.lateJoinQueue && S.lateJoinQueue[stage.id]) || [];
+          if (!lateEntries.length) return '';
+          const ss = getStageSettings(stage.id);
+          const gamesPerStage = ss.gamesPerStage || 1;
+          const allRoundsDone = roundsCompletedInStage(stage.id) >= gamesPerStage;
+          return `<div style="border-top:1px solid var(--border);padding:12px 14px;background:rgba(249,115,22,0.06)">
+            <div style="font-size:12px;font-weight:700;color:var(--orange);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">🕐 Late-Join Makeup Required</div>
+            ${lateEntries.map(entry => {
+              const mp = getPart(entry.pid);
+              if (!mp) return '';
+              const makeupGroup = S.groups.find(g => g.stageId === stage.id && g.isMakeup && g.makeupPlayerId === entry.pid);
+              const makeupGame = makeupGroup ? activeGameForGroup(makeupGroup.id) : null;
+              const makeupDone = makeupGroup ? completedGamesForGroup(makeupGroup.id) : [];
+              const seriesDone = makeupDone.length >= entry.makeupGamesNeeded;
+              if (seriesDone) {
+                const advanced = lateJoinerWouldAdvance(entry.pid, stage.id);
+                return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                  <span style="font-size:13px;font-weight:600">${escH(mp.name)}</span>
+                  <span class="badge ${advanced?'badge-green':'badge-muted'}">${advanced?'Advanced':'Eliminated'}</span>
+                  <span style="font-size:11px;color:var(--muted)">(${makeupDone.length}/${entry.makeupGamesNeeded} makeup games)</span>
+                </div>`;
+              }
+              if (!allRoundsDone) {
+                // Still playing regular rounds — player will be shuffled in automatically
+                const inRegularGroup = S.groups.some(g => g.stageId === stage.id && !g.isMakeup && !g.isCatchup && g.participantIds.includes(entry.pid));
+                return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                  <span style="font-size:13px;font-weight:600">${escH(mp.name)}</span>
+                  <span class="badge badge-blue">${inRegularGroup ? 'Playing regular rounds' : 'Waiting for next shuffle'}</span>
+                  <span style="font-size:11px;color:var(--muted)">${entry.makeupGamesNeeded} makeup game${entry.makeupGamesNeeded!==1?'s':''} after regular rounds</span>
+                </div>`;
+              }
+              if (makeupGame) {
+                return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                  <span style="font-size:13px;font-weight:600">${escH(mp.name)}</span>
+                  <span class="badge badge-blue">Makeup ${makeupDone.length + 1}/${entry.makeupGamesNeeded} in progress</span>
+                  <button class="btn btn-ghost btn-xs" data-a="openScorecard" data-gid="${makeupGroup.id}">Score</button>
+                </div>`;
+              }
+              if (makeupGroup && makeupDone.length > 0) {
+                return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                  <span style="font-size:13px;font-weight:600">${escH(mp.name)}</span>
+                  <span style="font-size:12px;color:var(--muted)">${makeupDone.length}/${entry.makeupGamesNeeded} makeup done</span>
+                  <button class="btn btn-primary btn-xs" data-a="startNextMakeupGame" data-gid="${makeupGroup.id}">Start Makeup ${makeupDone.length + 1}</button>
+                </div>`;
+              }
+              return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <span style="font-size:13px;font-weight:600">${escH(mp.name)}</span>
+                <span style="font-size:12px;color:var(--muted)">${entry.makeupGamesNeeded} makeup game${entry.makeupGamesNeeded!==1?'s':''} required</span>
+                <button class="btn btn-primary btn-xs" data-a="startMakeupGame" data-sid="${stage.id}" data-pid="${entry.pid}">Start Makeup Game</button>
+              </div>`;
+            }).join('')}
+          </div>`;
+        })()}
+
         <div style="border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap">
           ${stage.status === 'active' ? `<button class="btn btn-ghost btn-xs" data-a="markStageComplete" data-id="${stage.id}"
               ${!stageDone ? 'disabled style="opacity:0.4;cursor:not-allowed" title="All groups must submit scores first"' : ''}>Mark Complete</button>
@@ -2711,6 +2799,8 @@ function onClick(e) {
   else if (a==='markStageComplete') { const st=getStage(id); if(st){ if(!stageIsFullyDone(st.id)){alert('All groups must submit scores before marking this stage complete.');return;} st.status='complete';save();render();} }
   else if (a==='startCatchupGame') { if(sid&&pid) doStartCatchupGame(sid,pid); }
   else if (a==='startNextCatchupGame') { if(gid) doStartNextCatchupGame(gid); }
+  else if (a==='startMakeupGame') { if(sid&&pid) doStartMakeupGame(sid,pid); }
+  else if (a==='startNextMakeupGame') { if(gid) { const g=getGroup(gid); if(g&&g.isMakeup) { if(!activeGameForGroup(gid)) { S.games.push({id:uid(),groupId:gid,participantIds:g.participantIds,scores:{},rounds:[],completed:false,startedAt:Date.now()}); save();render(); } } } }
   else if (a==='addGroup') doAddGroup(sid);
   else if (a==='deleteGroup') doDeleteGroup(id);
   else if (a==='reopenGame') doReopenGame(id);
@@ -2843,6 +2933,17 @@ function doAddPlayer() {
       if (!S.catchupQueue[st.id].includes(pid)) S.catchupQueue[st.id].push(pid);
     });
   }
+  // Queue for makeup games in active stages that have already completed some rounds
+  S.stages.filter(st => st.status !== 'complete').forEach(st => {
+    const roundsDone = roundsCompletedInStage(st.id);
+    if (roundsDone > 0) {
+      if (!S.lateJoinQueue) S.lateJoinQueue = {};
+      if (!S.lateJoinQueue[st.id]) S.lateJoinQueue[st.id] = [];
+      if (!S.lateJoinQueue[st.id].find(e => e.pid === pid)) {
+        S.lateJoinQueue[st.id].push({ pid, makeupGamesNeeded: roundsDone });
+      }
+    }
+  });
   save(); render();
 }
 function doDeletePlayer(id) {
@@ -2852,6 +2953,12 @@ function doDeletePlayer(id) {
   if (S.catchupQueue) {
     Object.keys(S.catchupQueue).forEach(sid => {
       S.catchupQueue[sid] = S.catchupQueue[sid].filter(pid => pid !== id);
+    });
+  }
+  // Clean up from late-join queue
+  if (S.lateJoinQueue) {
+    Object.keys(S.lateJoinQueue).forEach(sid => {
+      S.lateJoinQueue[sid] = S.lateJoinQueue[sid].filter(e => e.pid !== id);
     });
   }
   save(); render();
@@ -2881,6 +2988,57 @@ function doStartCatchupGame(stageId, pid) {
   S.groups.push({ id: groupId, stageId, round: 999, name: `Catch-up ${player.name}`, participantIds: pids, isCatchup: true, catchupPlayerId: pid });
   // Start the game immediately
   S.games.push({ id: uid(), groupId, participantIds: pids, scores: {}, rounds: [], completed: false, startedAt: Date.now() });
+  save(); render();
+}
+
+// Check if a late-joining player would advance based on their combined regular+makeup stats
+// vs. all regular players in their category for the stage.
+function lateJoinerWouldAdvance(pid, stageId) {
+  const ss = getStageSettings(stageId);
+  const method = ss.advancementMethod || 'wins';
+  const n = ss.advancersPerCategory || 1;
+  const stats = stageStats(stageId); // includes makeup-game stats for pid
+  const regularGroupIds = new Set(S.groups.filter(g => g.stageId === stageId && !g.isCatchup && !g.isMakeup).map(g => g.id));
+  const regularPids = [...new Set(S.games.filter(g => regularGroupIds.has(g.groupId)).flatMap(g => g.participantIds))];
+  const p = getPart(pid);
+  const colKey = ss.mixCategories ? '__all__' : (p?.categoryId || '__all__');
+  const categoryPids = regularPids.filter(rpid => {
+    const rp = getPart(rpid);
+    const k = ss.mixCategories ? '__all__' : (rp?.categoryId || '__all__');
+    return k === colKey;
+  });
+  if (!categoryPids.includes(pid)) categoryPids.push(pid);
+  const ranked = [...categoryPids].sort((a, b) => {
+    const sa = stats[a]||{}, sb = stats[b]||{};
+    return method === 'wins'
+      ? (sb.gamesWon - sa.gamesWon) || (sb.totalPoints - sa.totalPoints)
+      : (sb.totalPoints - sa.totalPoints) || (sb.gamesWon - sa.gamesWon);
+  });
+  return ranked.indexOf(pid) < n;
+}
+
+function doStartMakeupGame(stageId, pid) {
+  const stage = getStage(stageId);
+  if (!stage) return;
+  const player = getPart(pid);
+  if (!player) return;
+  // Find or create the makeup group for this player
+  let makeupGroup = S.groups.find(g => g.stageId === stageId && g.isMakeup && g.makeupPlayerId === pid);
+  if (!makeupGroup) {
+    const categoryId = player.categoryId;
+    let opponents = S.participants.filter(p => p.id !== pid && p.categoryId === categoryId);
+    if (!opponents.length) opponents = S.participants.filter(p => p.id !== pid);
+    const ss = getStageSettings(stageId);
+    const gameSize = ss.gameSize || 4;
+    const shuffled = [...opponents].sort(() => Math.random() - 0.5);
+    const chosen = shuffled.slice(0, gameSize - 1);
+    const pids = [pid, ...chosen.map(p => p.id)];
+    const groupId = uid();
+    makeupGroup = { id: groupId, stageId, round: 998, name: `Makeup ${player.name}`, participantIds: pids, isMakeup: true, makeupPlayerId: pid };
+    S.groups.push(makeupGroup);
+  }
+  if (activeGameForGroup(makeupGroup.id)) return;
+  S.games.push({ id: uid(), groupId: makeupGroup.id, participantIds: makeupGroup.participantIds, scores: {}, rounds: [], completed: false, startedAt: Date.now() });
   save(); render();
 }
 
@@ -3289,6 +3447,13 @@ function addNextRoundGroupsForCategory(stageId, nextRound, colKey, sourceGroups)
   );
   if (alreadyExists) return;
   const allPids = sourceGroups.flatMap(g => g.participantIds);
+  // Include late-joiners: participants not yet in any regular group for this stage+category
+  const allAssignedInStage = new Set(S.groups.filter(g => g.stageId === stageId && !g.isCatchup && !g.isMakeup).flatMap(g => g.participantIds));
+  S.participants.forEach(p => {
+    if (allAssignedInStage.has(p.id)) return;
+    const pColKey = ss.mixCategories ? '__all__' : (p.categoryId || '__all__');
+    if (pColKey === colKey) allPids.push(p.id);
+  });
   const size = ss.gameSize;
   const minSize = ss.minGroupSize || 1;
   const col = (colKey !== '__all__') ? getCol(colKey) : null;
@@ -3296,7 +3461,7 @@ function addNextRoundGroupsForCategory(stageId, nextRound, colKey, sourceGroups)
   const sizes = distributeGroups(shuffled.length, size, minSize);
   const newGroups = [];
   // Start group numbering after any same-round groups already added this tick
-  let gNum = S.groups.filter(g => g.stageId === stageId && (g.round || 1) === nextRound && !g.isCatchup).length + 1;
+  let gNum = S.groups.filter(g => g.stageId === stageId && (g.round || 1) === nextRound && !g.isCatchup && !g.isMakeup).length + 1;
   let pos = 0;
   sizes.forEach(sz => {
     const chunk = shuffled.slice(pos, pos + sz); pos += sz;
@@ -3319,7 +3484,7 @@ function checkAndTriggerShuffles() {
     if (!ss.shuffleAfterGame) return;
     const gamesPerStage = ss.gamesPerStage || 1;
     if (gamesPerStage <= 1) return;
-    const stageGroups = S.groups.filter(g => g.stageId === stage.id && !g.isCatchup);
+    const stageGroups = S.groups.filter(g => g.stageId === stage.id && !g.isCatchup && !g.isMakeup);
     if (!stageGroups.length) return;
     // Group by category — each category shuffles independently
     const byCol = {};
@@ -3355,7 +3520,24 @@ function doCompleteGame(gameid) {
   S.roundInputs = newInputs;
 
   const group = getGroup(game.groupId);
-  if (group && group.isCatchup && group.catchupPlayerId) {
+  if (group && group.isMakeup && group.makeupPlayerId) {
+    // Makeup game completion — only the late-joining player's stats count
+    const mpid = group.makeupPlayerId;
+    const stageId = group.stageId;
+    const entry = S.lateJoinQueue?.[stageId]?.find(e => e.pid === mpid);
+    if (entry) {
+      const allDoneGames = S.games.filter(g => g.groupId === game.groupId && g.completed);
+      if (allDoneGames.length >= entry.makeupGamesNeeded) {
+        // Remove from lateJoinQueue — makeup series complete
+        S.lateJoinQueue[stageId] = S.lateJoinQueue[stageId].filter(e => e.pid !== mpid);
+        // Evaluate advancement: compare late joiner's combined stats against regular players
+        if (lateJoinerWouldAdvance(mpid, stageId)) {
+          advanceCatchupPlayer(mpid, stageId);
+        }
+      }
+    }
+    save(); render();
+  } else if (group && group.isCatchup && group.catchupPlayerId) {
     // Catch-up game completion — needs full save for catchupQueue and advancement
     const cpid = group.catchupPlayerId;
     const stageId = group.stageId;
