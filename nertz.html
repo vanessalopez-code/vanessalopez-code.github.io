@@ -574,6 +574,27 @@ function allStats() {
   return stats;
 }
 
+// Returns the count of fully-completed rounds for a specific player's category in a stage.
+// In shuffle mode each category shuffles independently, so rounds are tracked per-category.
+function roundsCompletedForPlayer(stageId, pid) {
+  const ss = getStageSettings(stageId);
+  const p = getPart(pid);
+  const colKey = ss.mixCategories ? '__all__' : (p?.categoryId || '__all__');
+  const groups = S.groups.filter(g => {
+    if (g.stageId !== stageId || g.isCatchup || g.isMakeup) return false;
+    return groupColKey(g, ss) === colKey;
+  });
+  if (!groups.length) return 0;
+  const roundNums = [...new Set(groups.map(g => g.round || 1))].sort((a, b) => a - b);
+  let completed = 0;
+  for (const r of roundNums) {
+    const rGroups = groups.filter(g => (g.round || 1) === r);
+    if (rGroups.every(g => completedGamesForGroup(g.id).length > 0)) completed = r;
+    else break;
+  }
+  return completed;
+}
+
 // Returns the count of fully-completed rounds in a stage (all groups in that round done).
 function roundsCompletedInStage(stageId) {
   const groups = S.groups.filter(g => g.stageId === stageId && !g.isCatchup && !g.isMakeup);
@@ -2564,7 +2585,6 @@ function buildAdminStages() {
           if (!lateEntries.length) return '';
           const ss = getStageSettings(stage.id);
           const gamesPerStage = ss.gamesPerStage || 1;
-          const allRoundsDone = roundsCompletedInStage(stage.id) >= gamesPerStage;
           return `<div style="border-top:1px solid var(--border);padding:12px 14px;background:rgba(249,115,22,0.06)">
             <div style="font-size:12px;font-weight:700;color:var(--orange);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">🕐 Late-Join Makeup Required</div>
             ${lateEntries.map(entry => {
@@ -2574,6 +2594,9 @@ function buildAdminStages() {
               const makeupGame = makeupGroup ? activeGameForGroup(makeupGroup.id) : null;
               const makeupDone = makeupGroup ? completedGamesForGroup(makeupGroup.id) : [];
               const seriesDone = makeupDone.length >= entry.makeupGamesNeeded;
+              // Use per-category round completion for this specific player
+              const playerRoundsDone = roundsCompletedForPlayer(stage.id, entry.pid);
+              const allRoundsDone = playerRoundsDone >= gamesPerStage;
               if (seriesDone) {
                 const advanced = lateJoinerWouldAdvance(entry.pid, stage.id);
                 return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
@@ -2935,7 +2958,7 @@ function doAddPlayer() {
   }
   // Queue for makeup games in active stages that have already completed some rounds
   S.stages.filter(st => st.status !== 'complete').forEach(st => {
-    const roundsDone = roundsCompletedInStage(st.id);
+    const roundsDone = roundsCompletedForPlayer(st.id, pid);
     if (roundsDone > 0) {
       if (!S.lateJoinQueue) S.lateJoinQueue = {};
       if (!S.lateJoinQueue[st.id]) S.lateJoinQueue[st.id] = [];
