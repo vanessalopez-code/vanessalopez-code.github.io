@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Nertz — Vanessa's 40th</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Nunito:wght@400;600;700;800&family=Pacifico&display=swap" rel="stylesheet">
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <style>
@@ -59,7 +59,7 @@
 
     /* HOME SCREEN */
     .home { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-    .home-hero-card { background: linear-gradient(150deg, #2d0840 0%, #180810 55%, #380828 100%); border: 1px solid rgba(214,29,103,.25); border-radius: 24px; padding: 32px 24px 28px; position: relative; text-align: center; box-shadow: var(--shadow-md), 0 0 40px rgba(214,29,103,.1); }
+    .home-hero-card { background: linear-gradient(150deg, #2d0840 0%, #180810 55%, #380828 100%); border: 1px solid rgba(214,29,103,.25); border-radius: 24px; padding: 18px 24px 14px; position: relative; text-align: center; box-shadow: var(--shadow-md), 0 0 40px rgba(214,29,103,.1); }
     .home-hero-card::before { content: ''; position: absolute; inset: 8px; border: 1px solid rgba(214,29,103,.15); border-radius: 18px; pointer-events: none; }
     .home-winner-hero { background: linear-gradient(150deg, #1c1407 0%, #2a1c05 45%, #1a1500 100%); border: 1px solid rgba(251,191,36,.35); border-radius: 24px; padding: 32px 24px 28px; position: relative; text-align: center; box-shadow: var(--shadow-md), 0 0 60px rgba(251,191,36,.12); }
     .home-winner-hero::before { content: ''; position: absolute; inset: 8px; border: 1px solid rgba(251,191,36,.18); border-radius: 18px; pointer-events: none; }
@@ -70,7 +70,7 @@
     .winner-banner { background: linear-gradient(135deg, rgba(251,191,36,.12), rgba(251,191,36,.05)); border: 1px solid rgba(251,191,36,.3); border-radius: 14px; padding: 14px 16px; text-align: center; font-size: 15px; font-weight: 800; color: var(--gold); }
     .lb-row-winner { background: rgba(251,191,36,.06); border-left: 3px solid var(--gold); }
     .home-hero-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .24em; text-transform: uppercase; color: var(--muted); line-height: 1.6; }
-    .home-hero-title { font-family: 'Playfair Display', serif; font-size: 50px; font-weight: 700; color: var(--accent); margin: 8px 0 12px; line-height: 1.1; }
+    .home-hero-title { font-family: 'Pacifico', cursive; font-size: 42px; font-weight: 400; color: var(--accent); line-height: 1.2; white-space: nowrap; }
     .home-hero-suits { font-size: 22px; letter-spacing: 8px; margin: 6px 0 0; }
     .home-hero-suits .s1 { color: var(--gold); }
     .home-hero-suits .s2 { color: var(--accent); }
@@ -1318,9 +1318,7 @@ function buildHome() {
       <div class="home-winner-sub">${escH(S.tournamentName || 'Nertz Tournament')}</div>
     </div>` : `
     <div class="home-hero-card">
-      <div class="home-hero-eyebrow">Friends Who</div>
       <div class="home-hero-title">Nertz Together</div>
-      <div class="home-hero-eyebrow">Stay Together</div>
       <div class="home-hero-suits"><span class="s1">♥</span> <span class="s2">♦</span> <span class="s1">♠</span> <span class="s2">♣</span></div>
     </div>`}
     <div class="home-info-card">
